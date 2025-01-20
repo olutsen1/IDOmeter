@@ -24,8 +24,8 @@ const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 0;
 const int daylightOffset_sec = 3600;
 
-const char* mqtt_server = "192.168.88.34";
-const int mqtt_port = 1883;
+const char* mqtt_server = "192.168.88.34"; // RPI server address
+const int mqtt_port = 1883; 
 const char* mqtt_user = "yourname";
 const char* mqtt_password = "yourpass";
 
