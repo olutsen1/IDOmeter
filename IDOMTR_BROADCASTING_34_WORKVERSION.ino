@@ -18,16 +18,16 @@
 #define StopButtonPin 35
 #define DEBOUNCE_DELAY 50
 
-const char* ssid = "Solid_2GHz";
-const char* password = "Tomorrow2012";
+const char* ssid = "yournetwork";
+const char* password = "yourpassword";
 const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 0;
 const int daylightOffset_sec = 3600;
 
 const char* mqtt_server = "192.168.88.34";
 const int mqtt_port = 1883;
-const char* mqtt_user = "olutsen1";
-const char* mqtt_password = "635dd9";
+const char* mqtt_user = "yourname";
+const char* mqtt_password = "yourpass";
 
 const int GSRPin = 36;
 const int gsrNumReadings = 10;
