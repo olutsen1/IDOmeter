@@ -1,5 +1,5 @@
 // =====================================================================
-//  IDometer — прошивка 2.1 для платы IDometer V1.0 (TTGO T-Display ESP32)
+//  IDometer — прошивка 2.2 для платы IDometer V1.0 (TTGO T-Display ESP32)
 //
 //  Устройство НЕ знает реального времени: оно нумерует пакеты и ставит
 //  метку по собственному счётчику тактов. Время во время компьютера
@@ -28,7 +28,7 @@
 #include "config.h"
 #include "wifi_setup.h"
 
-#define FW_VERSION "2.1"
+#define FW_VERSION "2.2"
 
 // ---- протокол v1
 constexpr int      BASE_HZ  = 100;
@@ -211,14 +211,14 @@ void line(int y, uint8_t size, uint16_t color, const char* fmt, ...) {
 }
 
 void printStatus() {
-  Serial.printf("WiFi: %s %s  IP %s  режим настройки: %s\n",
-                WiFi.status() == WL_CONNECTED ? "подключён к" : "нет связи", stSsid,
-                WiFi.localIP().toString().c_str(), stApOn ? "вкл" : "выкл");
-  Serial.printf("Компьютер: %s, отправлено пакетов %lu, потеряно в очереди %lu\n",
-                stLinked ? "найден" : "не найден", (unsigned long)stSent, (unsigned long)stQueueDrop);
-  Serial.printf("Пульс: %s, ИК %lu;  GSR %ld;  батарея %lu мВ;  SD: %s\n",
-                stSensorOk ? (stFinger ? "палец есть" : "пальца нет") : "датчик не найден",
-                (unsigned long)stIr, (long)stEda, (unsigned long)stBatMv, stSdOk ? sdName : "нет");
+  Serial.printf("WiFi: %s %s  IP %s  setup mode: %s\n",
+                WiFi.status() == WL_CONNECTED ? "connected to" : "not connected", stSsid,
+                WiFi.localIP().toString().c_str(), stApOn ? "on" : "off");
+  Serial.printf("Computer: %s, packets sent %lu, dropped in queue %lu\n",
+                stLinked ? "found" : "not found", (unsigned long)stSent, (unsigned long)stQueueDrop);
+  Serial.printf("Pulse: %s, IR %lu;  GSR %ld;  battery %lu mV;  SD: %s\n",
+                stSensorOk ? (stFinger ? "finger on" : "no finger") : "sensor not found",
+                (unsigned long)stIr, (long)stEda, (unsigned long)stBatMv, stSdOk ? sdName : "none");
 }
 
 void displayTask(void*) {
@@ -270,7 +270,7 @@ void displayTask(void*) {
 void openSdFile() {
 #if SD_BACKUP
   sdSPI.begin(PIN_SD_SCLK, PIN_SD_MISO, PIN_SD_MOSI, PIN_SD_CS);
-  if (!SD.begin(PIN_SD_CS, sdSPI, 10000000)) { Serial.println("SD: нет карты"); return; }
+  if (!SD.begin(PIN_SD_CS, sdSPI, 10000000)) { Serial.println("SD: no card"); return; }
   if (!SD.exists("/idm")) SD.mkdir("/idm");
   for (int i = 1; i < 10000; i++) {
     snprintf(sdName, sizeof sdName, "/idm/rec_%04d.bin", i);
@@ -278,7 +278,7 @@ void openSdFile() {
   }
   sdFile = SD.open(sdName, FILE_WRITE);
   stSdOk = (bool)sdFile;
-  Serial.printf("SD: %s %s\n", sdName, stSdOk ? "OK" : "ошибка открытия");
+  Serial.printf("SD: %s %s\n", sdName, stSdOk ? "OK" : "open failed");
 #endif
 }
 
@@ -310,7 +310,7 @@ void setup() {
     sensor.clearFIFO();
     stSensorOk = true;
   } else {
-    Serial.println("MAX30102 не найден — работаем без пульса");
+    Serial.println("MAX30102 not found - running without pulse");
   }
 
   openSdFile();

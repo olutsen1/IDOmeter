@@ -1,35 +1,35 @@
 // =====================================================================
-//  IDometer — настройки прошивки. Обычно менять нужно только Wi-Fi.
+//  IDometer firmware settings. Usually nothing here needs changing.
 // =====================================================================
 #pragma once
 
-// ---- Wi-Fi (сеть 2,4 ГГц — ESP32 не работает с 5 ГГц)
-// Вписывать НЕ обязательно: сети добавляются с телефона (режим настройки)
-// или через монитор порта командой wifi. Если вписать — эта сеть будет
-// сохранена при первом запуске, когда в памяти прибора ещё нет ни одной.
-#define WIFI_SSID      "имя_вашей_сети"
-#define WIFI_PASSWORD  "пароль_вашей_сети"
+// ---- Wi-Fi (2.4 GHz only; ESP32 does not support 5 GHz)
+// Optional: networks are normally added from a phone (setup mode) or with
+// the "wifi" command in the serial monitor. If filled in, this network is
+// saved on first start, when the device has no networks stored yet.
+#define WIFI_SSID      "your_network"
+#define WIFI_PASSWORD  "your_password"
 
-// ---- Куда слать данные.
-// Пустая строка: устройство само находит компьютер (рассылает данные всем
-// в сети, а как только программа на компьютере ответит — шлёт только ей).
-// Если не получается, впишите IP компьютера, например "192.168.88.20".
+// ---- Where to send data.
+// Empty: the device finds the computer by itself (broadcasts until the app
+// replies, then sends only to it). If that fails, put the computer's IP here,
+// e.g. "192.168.88.20".
 #define RECEIVER_IP    ""
 #define RECEIVER_PORT  5005
 
-// ---- Выводы (как на вашей плате IDometer V1.0 + TTGO T-Display)
-#define PIN_GSR        36     // выход Grove GSR
+// ---- Pins (IDometer V1.0 board + TTGO T-Display)
+#define PIN_GSR        36     // Grove GSR output
 #define PIN_I2C_SDA    21     // MAX30102
 #define PIN_I2C_SCL    22
 #define PIN_SD_SCLK    25
 #define PIN_SD_MISO    27
 #define PIN_SD_MOSI    26
 #define PIN_SD_CS      33
-#define PIN_BTN_SCREEN 35     // правая кнопка: экран вкл/выкл
+#define PIN_BTN_SCREEN 35     // right button: screen on/off; hold at power-on for Wi-Fi setup
 
-// ---- Датчик пульса
-#define PPG_LED_POWER  0x1F   // яркость светодиодов 0x00..0xFF (≈6 мА при 0x1F)
-#define FINGER_IR_MIN  50000  // ниже — считаем, что пальца нет
+// ---- Pulse sensor
+#define PPG_LED_POWER  0x1F   // LED current 0x00..0xFF (~6 mA at 0x1F)
+#define FINGER_IR_MIN  50000  // below this: no finger on the sensor
 
-// ---- Резервная запись на SD-карту (если карта вставлена)
-#define SD_BACKUP      1      // 0 — выключить
+// ---- Backup recording to SD card (if a card is inserted)
+#define SD_BACKUP      1      // 0 = off

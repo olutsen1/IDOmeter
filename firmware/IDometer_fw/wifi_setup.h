@@ -115,25 +115,25 @@ static const char* PAGE_HEAD =
 
 static void pageRoot() {
   String h = PAGE_HEAD;
-  h += "<h1>IDometer — сеть Wi-Fi</h1>";
+  h += "<h1>IDometer Wi-Fi</h1>";
   if (WiFi.status() == WL_CONNECTED)
-    h += "<p class='ok'>Подключён к «" + esc(WiFi.SSID()) + "»</p>";
+    h += "<p class='ok'>Connected to \"" + esc(WiFi.SSID()) + "\"</p>";
   else
-    h += "<p class='no'>Сейчас не подключён к сети</p>";
-  h += "<form method='post' action='/save'><label>Сеть рядом:</label><select name='ssid'>";
+    h += "<p class='no'>Not connected to a network</p>";
+  h += "<form method='post' action='/save'><label>Nearby network:</label><select name='ssid'>";
   for (int i = 0; i < scanCount; i++)
     h += "<option>" + esc(scanList[i]) + "</option>";
-  h += "</select><label>или впишите имя сети вручную:</label>"
-       "<input name='ssid_text' placeholder='(необязательно)'>"
-       "<label>Пароль:</label><input name='pass' type='password'>"
-       "<button>Сохранить и подключиться</button></form>"
-       "<p><a href='/scan'>Обновить список сетей</a></p>"
-       "<h3>Сохранённые сети</h3>";
-  if (!netCount) h += "<p>пока нет</p>";
+  h += "</select><label>or type the network name:</label>"
+       "<input name='ssid_text' placeholder='(optional)'>"
+       "<label>Password:</label><input name='pass' type='password'>"
+       "<button>Save and connect</button></form>"
+       "<p><a href='/scan'>Refresh network list</a></p>"
+       "<h3>Saved networks</h3>";
+  if (!netCount) h += "<p>none yet</p>";
   for (int i = 0; i < netCount; i++)
     h += "<div class='net'><span>" + esc(nets[i].ssid) +
-         "</span><a href='/forget?i=" + String(i) + "'>забыть</a></div>";
-  h += "<p style='color:#777;font-size:13px'>Прибор помнит до 5 сетей и сам выбирает ту, что рядом.</p></body></html>";
+         "</span><a href='/forget?i=" + String(i) + "'>forget</a></div>";
+  h += "<p style='color:#777;font-size:13px'>The device remembers up to 5 networks and picks the one in range.</p></body></html>";
   web.send(200, "text/html; charset=utf-8", h);
 }
 
@@ -143,11 +143,11 @@ static void pageSave() {
   if (!ssid.length()) ssid = web.arg("ssid");
   netsAdd(ssid, web.arg("pass"));
   String h = PAGE_HEAD;
-  h += "<h1>Сохранено</h1><p>Прибор подключается к «" + esc(ssid) + "».</p>"
-       "<p>Телефон сейчас отключится от сети IDometer-setup — это нормально. "
-       "Смотрите на экран прибора: должно появиться <b>WiFi: OK</b>.</p>"
-       "<p>Если через минуту прибор снова покажет режим настройки — "
-       "скорее всего, неверный пароль.</p></body></html>";
+  h += "<h1>Saved</h1><p>The device is connecting to \"" + esc(ssid) + "\".</p>"
+       "<p>Your phone will now disconnect from IDometer-setup; that is normal. "
+       "Watch the device screen: it should show <b>WiFi: OK</b>.</p>"
+       "<p>If the device returns to setup mode within a minute, "
+       "the password was most likely wrong.</p></body></html>";
   web.send(200, "text/html; charset=utf-8", h);
 }
 
@@ -169,7 +169,7 @@ static void apStart() {
   web.onNotFound(redirectRoot);     // любой адрес ведёт на страницу настройки
   web.begin();
   stApOn = true;
-  Serial.println("Режим настройки: сеть «" AP_NAME "», страница 192.168.4.1");
+  Serial.println("Setup mode: join Wi-Fi \"" AP_NAME "\", open 192.168.4.1");
 }
 
 static void apStop() {
@@ -179,24 +179,24 @@ static void apStop() {
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_STA);
   stApOn = false;
-  Serial.println("Режим настройки выключен");
+  Serial.println("Setup mode off");
 }
 
 // ---------------------------------------------------------------- монитор порта
 static void printNets() {
-  Serial.printf("Сохранённых сетей: %d\n", netCount);
+  Serial.printf("Saved networks: %d\n", netCount);
   for (int i = 0; i < netCount; i++) Serial.printf("  %d: %s\n", i + 1, nets[i].ssid.c_str());
 }
 
 static void printHelp() {
   Serial.println(
-    "Команды:\n"
-    "  wifi      — добавить сеть (спросит имя и пароль)\n"
-    "  list      — сохранённые сети\n"
-    "  forget N  — забыть сеть номер N\n"
-    "  setup     — включить режим настройки с телефона\n"
-    "  status    — состояние прибора\n"
-    "  help      — эта подсказка");
+    "Commands:\n"
+    "  wifi      - add a network (asks for name and password)\n"
+    "  list      - saved networks\n"
+    "  forget N  - forget network number N\n"
+    "  setup     - start phone setup mode\n"
+    "  status    - device status\n"
+    "  help      - this help");
 }
 
 void printStatus();   // в основном файле
@@ -222,24 +222,24 @@ static void serialPoll() {
   buf = "";
   if (step == 1) {
     newSsid = s;
-    Serial.println("Пароль (пустая строка — сеть без пароля, тогда отправьте пробел):");
+    Serial.println("Password (for an open network send a single space):");
     step = 2;
     return;
   }
   if (step == 2) {
     s.trim();
     netsAdd(newSsid, s);
-    Serial.printf("Сохранено: «%s». Подключаюсь…\n", newSsid.c_str());
+    Serial.printf("Saved: \"%s\". Connecting...\n", newSsid.c_str());
     step = 0;
     return;
   }
   s.trim();
-  if (s == "wifi") { Serial.println("Имя сети (SSID), точно как в списке сетей:"); step = 1; }
+  if (s == "wifi") { Serial.println("Network name (SSID), exactly as listed:"); step = 1; }
   else if (s == "list") printNets();
   else if (s.startsWith("forget")) {
     int n = s.substring(6).toInt();
-    if (n >= 1 && n <= netCount) { Serial.printf("Забыта: %s\n", nets[n - 1].ssid.c_str()); netsForget(n - 1); }
-    else Serial.println("Укажите номер из list, например: forget 2");
+    if (n >= 1 && n <= netCount) { Serial.printf("Forgotten: %s\n", nets[n - 1].ssid.c_str()); netsForget(n - 1); }
+    else Serial.println("Give a number from list, e.g.: forget 2");
   }
   else if (s == "setup") apStart();
   else if (s == "status") printStatus();
@@ -250,7 +250,7 @@ static void serialPoll() {
 void wifiTask(void*) {
   netsLoad();
   String def = WIFI_SSID;
-  if (netCount == 0 && def.length() && def != "имя_вашей_сети") netsAdd(def, WIFI_PASSWORD);
+  if (netCount == 0 && def.length() && def != "your_network") netsAdd(def, WIFI_PASSWORD);
 
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);         // энергосбережение Wi-Fi даёт задержки до сотен мс

@@ -77,7 +77,7 @@ class DataPacket:
 
 def encode(p: DataPacket) -> bytes:
     if p.n_ticks % SLOW_DIV:
-        raise ValueError("n_ticks должно быть кратно SLOW_DIV")
+        raise ValueError("n_ticks must be a multiple of SLOW_DIV")
     ns = p.n_ticks // SLOW_DIV
     hdr = _HDR.pack(MAGIC, VERSION, TYPE_DATA, p.seq & 0xFFFFFFFF,
                     p.t0_us, p.n_ticks, p.flags)
@@ -90,16 +90,16 @@ def encode(p: DataPacket) -> bytes:
 
 def decode(buf: bytes) -> DataPacket:
     if len(buf) < HEADER_SIZE:
-        raise ValueError("короткий пакет")
+        raise ValueError("packet too short")
     magic, ver, typ, seq, t0, n, flags = _HDR.unpack_from(buf, 0)
     if magic != MAGIC or ver != VERSION or typ != TYPE_DATA:
-        raise ValueError("чужой или неподдерживаемый пакет")
+        raise ValueError("foreign or unsupported packet")
     if n == 0 or n % SLOW_DIV:
-        raise ValueError("неверное n_ticks")
+        raise ValueError("invalid n_ticks")
     ns = n // SLOW_DIV
     need = HEADER_SIZE + 4 * (2 * n + 2 * ns)
     if len(buf) != need:
-        raise ValueError(f"длина {len(buf)}, ожидалось {need}")
+        raise ValueError(f"length {len(buf)}, expected {need}")
     o = HEADER_SIZE
     ir = np.frombuffer(buf, "<u4", n, o); o += 4 * n
     red = np.frombuffer(buf, "<u4", n, o); o += 4 * n
