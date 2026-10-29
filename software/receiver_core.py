@@ -125,29 +125,80 @@ def detect_beats(t, ppg, fs=P.BASE_RATE_HZ):
     return np.array(out)
 
 
+# Beat-interval artefact rejection. A misdetected beat (finger moved, sensor
+# pressed) produces an interval that jumps away from both of its neighbours,
+# while physiological changes, even large ones (startle, slow deep breathing),
+# change the interval gradually from one beat to the next. So each interval is
+# compared with the mean of its two neighbours; the worst one is rejected if it
+# differs by more than IBI_TOL, and the check repeats with the remaining beats
+# until nothing exceeds the tolerance. Raw data are never changed: only the
+# heart-rate series gets gaps.
+IBI_RANGE = (0.33, 1.6)     # s: 37–180 bpm
+IBI_TOL = 0.30
+LIVE_WINDOW = 40            # intervals re-checked live; older decisions are final
+
+
+def clean_ibi(ibi):
+    """True for beat intervals kept, False for artefacts."""
+    ibi = np.asarray(ibi, float)
+    keep = (ibi >= IBI_RANGE[0]) & (ibi <= IBI_RANGE[1])
+    while True:
+        idx = np.where(keep)[0]
+        if len(idx) < 3:
+            break
+        v = ibi[idx]
+        prev = np.r_[np.nan, v[:-1]]
+        nxt = np.r_[v[1:], np.nan]
+        ref = np.nanmean(np.vstack((prev, nxt)), axis=0)
+        dev = np.abs(v - ref) / ref
+        j = int(np.nanargmax(dev))
+        if dev[j] <= IBI_TOL:
+            break
+        keep[idx[j]] = False
+    return keep
+
+
 class LiveBeats:
     def __init__(self):
         self.beats = []        # beat times (app seconds)
-        self.hr = []           # (t, bpm)
+        self.ibi = []          # (time of the closing beat, interval)
+        self.final = []        # (t, bpm) decided for good; bpm NaN = rejected
+        self.hr = []           # final + the recent window, re-checked on each update
+        self.rejected = 0
+
+    def _recheck(self):
+        if len(self.ibi) > 2 * LIVE_WINDOW:            # freeze the oldest decisions
+            old = self.ibi[:LIVE_WINDOW]
+            keep = clean_ibi([v for _, v in self.ibi[:2 * LIVE_WINDOW]])[:LIVE_WINDOW]
+            self.final += [(t, 60.0 / v if k else float("nan")) for (t, v), k in zip(old, keep)]
+            self.rejected += int((~keep).sum())
+            self.ibi = self.ibi[LIVE_WINDOW:]
+        keep = clean_ibi([v for _, v in self.ibi])
+        # the newest interval has no right-hand neighbour yet: shown, judged on the next beat
+        self.hr = self.final + [(t, 60.0 / v if k else float("nan"))
+                                for (t, v), k in zip(self.ibi, keep)]
+        self.rejected_now = self.rejected + int((~keep).sum())
 
     def update(self, t, ppg, now_t):
         if len(t) < 300:
             return
         sel = t > now_t - 12
         bt = detect_beats(t[sel], ppg[sel])
+        added = False
         for b in bt:
             if b > now_t - 1.5:           # the filter has not settled at the window edge
                 continue
             if self.beats and b <= self.beats[-1] + 0.3:
                 continue
             if self.beats:
-                ibi = b - self.beats[-1]
-                if 0.33 <= ibi <= 1.6:
-                    self.hr.append((b, 60.0 / ibi))
+                self.ibi.append((b, b - self.beats[-1]))
+                added = True
             self.beats.append(b)
+        if added:
+            self._recheck()
         if len(self.beats) > 2000:
             self.beats = self.beats[-1000:]
-            self.hr = self.hr[-1000:]
+            self.final = self.final[-1000:]
 
 
 # ---------------------------------------------------------------- recording
@@ -371,6 +422,7 @@ class Engine:
             "bad": self.bad,
             "device_resets": self.resets,
             "drift_ppm": round(float(self.sync.drift_ppm), 1) if self.sync.ready else None,
+            "beats_rejected": getattr(self.beats, "rejected_now", 0),
         }
 
     def connected(self):

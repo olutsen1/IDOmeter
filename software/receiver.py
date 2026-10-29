@@ -107,7 +107,7 @@ def run_gui(engine):
     p_resp.getAxis("left").setStyle(showValues=False)
 
     c_eda = p_eda.plot(pen=pg.mkPen("#1f77b4", width=2), connect="finite")
-    c_hr = p_hr.plot(pen=pg.mkPen("#d62728", width=2), symbol="o", symbolSize=4,
+    c_hr = p_hr.plot(pen=pg.mkPen("#d62728", width=2), connect="finite", symbol="o", symbolSize=4,
                      symbolBrush="#d62728", symbolPen=None)
     c_ppg = p_ppg.plot(pen=pg.mkPen("#888", width=1), connect="finite")
     c_resp = p_resp.plot(pen=pg.mkPen("#2ca02c", width=2), connect="finite")
@@ -345,7 +345,8 @@ def run_gui(engine):
                 conn = f"<span style='color:#888'>{tr('st_waiting', port=cfg['listen_port'])}</span>"
             finger = (tr("st_finger") if engine.last_flags & P.FLAG_FINGER
                       else f"<span style='color:#c62828'>{tr('st_no_finger')}</span>")
-            hr_now = f"{engine.beats.hr[-1][1]:.0f}" if engine.beats.hr else "—"
+            good = [v for _, v in engine.beats.hr[-3:] if np.isfinite(v)]
+            hr_now = f"{good[-1]:.0f}" if good else "—"
             if not engine.sync.ready:
                 sync = "—"
             elif len(engine.sync.buckets) < 30:     # under a minute: the slope is not reliable yet
