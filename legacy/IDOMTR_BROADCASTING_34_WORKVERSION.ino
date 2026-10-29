@@ -71,7 +71,7 @@ void setup() {
 }
 
 void loop() {
-    mqttClient.loop(); // Поддерживает подключение к брокеру активным
+    mqttClient.loop(); // Keeps the broker connection alive
     handleSensorReadings();
     handleButtons();
 }
@@ -134,7 +134,7 @@ void synchronizeTime() {
     unsigned long startAttemptTime = millis();
     bool timeSynced = false;
 
-    while (millis() - startAttemptTime < 8000) { // Даем 8 секунд на синхронизацию
+    while (millis() - startAttemptTime < 8000) { // Allow 8 seconds for time sync
         struct tm timeinfo;
         if (getLocalTime(&timeinfo)) {
             updateDisplayAndSerial("Time Sync OK", 120);
@@ -153,13 +153,13 @@ void resetMax30102() {
     pinMode(21, OUTPUT);
     digitalWrite(21, LOW);
     unsigned long startTime = millis();
-    while (millis() - startTime < 10);  // Неблокирующая задержка
+    while (millis() - startTime < 10);  // Non-blocking delay
     pinMode(21, INPUT);
 }
 
 void initializeSensors() {
-    resetMax30102();  // Принудительный сброс сенсора перед запуском
-    Wire.begin(21, 22);  // Указываем SDA и SCL для ESP32
+    resetMax30102();  // Force a sensor reset before start
+    Wire.begin(21, 22);  // SDA and SCL pins for the ESP32
 
     updateDisplayAndSerial("Sensor init...", 140);
     updateDisplayAndSerial("__________________", 160);
@@ -168,7 +168,7 @@ void initializeSensors() {
     bool sensorInitialized = false;
 
     while (attempts > 0) {
-        if (millis() - lastAttemptTime >= 500) {  // Ожидание между попытками
+        if (millis() - lastAttemptTime >= 500) {  // Wait between attempts
             lastAttemptTime = millis();
 
             if (particleSensor.begin(Wire, I2C_SPEED_STANDARD)) {
@@ -185,7 +185,7 @@ void initializeSensors() {
 
     if (!sensorInitialized) {
         updateDisplayAndSerial("PulseSensor Fail", 140);
-        while (1);  // Остановка, если сенсор не инициализировался
+        while (1);  // Halt if the sensor failed to initialise
     }
 }
 
@@ -213,7 +213,7 @@ void handleGSRReadings() {
             strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &timeinfo);
             Serial.printf("%s;%d;%d\n", timestamp, gsrAverage, averageBPM);
         }
-        logAndSendData(); // Запись данных в файл и отправка через MQTT
+        logAndSendData(); // Write to file and send via MQTT
     }
 }
 
@@ -238,7 +238,7 @@ void handlePulseSensorReadings() {
                 beatAvg += rates[x];
             }
             averageBPM = beatAvg / RATE_SIZE;
-            logAndSendData(); // Запись данных в файл и отправка через MQTT
+            logAndSendData(); // Write to file and send via MQTT
         }
     }
 }
@@ -299,23 +299,23 @@ void logAndSendData() {
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) return;
 
-    // Корректируем время на один час назад
-    //timeinfo.tm_hour -= 1; // оставляем время без изменений
-    mktime(&timeinfo); // Пересчитываем время с учетом изменений
+    // Shift the time back by one hour
+    //timeinfo.tm_hour -= 1; // keep the time unchanged
+    mktime(&timeinfo); // Recompute the time after changes
 
-    // Формат для записи в файл: "YYYY-MM-DD HH:MM:SS"
+    // File format: "YYYY-MM-DD HH:MM:SS"
     char fileTimestamp[20];
     strftime(fileTimestamp, sizeof(fileTimestamp), "%Y-%m-%d %H:%M:%S", &timeinfo);
     dataFile.printf("%s,%d,%d\n", fileTimestamp, gsrAverage, averageBPM);
 
-    // Формат для бродкаста: "DD-MMM-YYYY HH:MM:SS" без миллисекунд
+    // Broadcast format: "DD-MMM-YYYY HH:MM:SS" without milliseconds
     char mqttTimestamp[64];
     strftime(mqttTimestamp, sizeof(mqttTimestamp), "%d-%b-%Y %H:%M:%S", &timeinfo);
 
-    // Создаем строку сообщения для бродкаста
+    // Build the broadcast message string
     String message = String(mqttTimestamp) + "; " + String(gsrAverage) + "; " + String(averageBPM);
 
-    // Отправляем сообщение на MQTT брокер
+    // Publish the message to the MQTT broker
     mqttClient.publish("esp32/data", message.c_str(), true);
 }
 

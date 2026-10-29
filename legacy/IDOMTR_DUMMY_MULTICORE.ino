@@ -4,40 +4,40 @@
 #include <PubSubClient.h>
 #include <time.h>
 
-// Параметры WiFi
+// Wi-Fi settings
 const char* ssid = "yournetwork";
 const char* password = "yourpassword";
 
-// Параметры MQTT
+// MQTT settings
 const char* mqtt_server = "192.168.88.34";
 const int mqtt_port = 1883;
 const char* mqtt_user = "yourname";
 const char* mqtt_password = "yourpass";
 
-// Настройка NTP сервера
+// NTP server
 const char* ntpServer = "pool.ntp.org";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// Переменные для генерации данных
+// Data generation variables
 unsigned long counter = 0;
 unsigned long startTime = 0;
 unsigned long lastTimeSync = 0;
-const long timeSyncInterval = 3600 * 1000; // Синхронизация времени каждый час
+const long timeSyncInterval = 3600 * 1000; // Time sync every hour
 
-// Очередь для передачи данных между задачами
+// Queue for passing data between tasks
 QueueHandle_t dataQueue;
 
-// Переменные для GSR и BPM
+// GSR and BPM variables
 int GSR = 800;
 int BPM = 60;
 
-// Таймеры
+// Timers
 hw_timer_t *timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 
-// Флаг для обработки данных в основном цикле
+// Flag for processing data in the main loop
 volatile bool timerFlag = false;
 
 void IRAM_ATTR onTimer() {
@@ -51,29 +51,29 @@ void setup() {
     setup_wifi();
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
-    client.setBufferSize(256); // Увеличение буфера MQTT
+    client.setBufferSize(256); // Larger MQTT buffer
     configTime(0, 0, ntpServer); // GMT+0
     lastTimeSync = millis();
     startTime = millis();
 
-    // Создаем очередь для передачи данных
-    dataQueue = xQueueCreate(10, sizeof(char) * 128); // Очередь для строковых сообщений
+    // Create the data queue
+    dataQueue = xQueueCreate(10, sizeof(char) * 128); // Queue of string messages
 
-    // Настраиваем аппаратный таймер
-    timer = timerBegin(0, 80, true); // Таймер 0, делитель 80 (1 мкс при тактовой частоте 80 МГц)
+    // Configure the hardware timer
+    timer = timerBegin(0, 80, true); // Timer 0, prescaler 80 (1 µs at 80 MHz clock)
     timerAttachInterrupt(timer, &onTimer, true);
-    timerAlarmWrite(timer, 200000, true); // 200 000 мкс = 200 мс
-    timerAlarmEnable(timer); // Включаем таймер
+    timerAlarmWrite(timer, 200000, true); // 200 000 µs = 200 ms
+    timerAlarmEnable(timer); // Enable the timer
 
-    // Создание задачи для отправки данных
+    // Create the data sending task
     xTaskCreatePinnedToCore(
-        sendDataTask,     // Функция задачи
-        "SendData",       // Имя задачи
-        8192,             // Размер стека
-        NULL,             // Параметры задачи
-        1,                // Приоритет
-        NULL,             // Дескриптор задачи
-        1                 // Ядро ESP32
+        sendDataTask,     // Task function
+        "SendData",       // Task name
+        8192,             // Stack size
+        NULL,             // Task parameters
+        1,                // Priority
+        NULL,             // Task handle
+        1                 // ESP32 core
     );
 }
 
@@ -95,11 +95,11 @@ void loop() {
         GSR = GSR < 1800 ? GSR + 1 : 800;
         BPM = BPM < 120 ? BPM + 1 : 60;
 
-        // Создаем сообщение вручную, чтобы избежать использования String
+        // Build the message by hand to avoid String
         char message[128];
         snprintf(message, sizeof(message), "%s; %d; %d", currentTime, GSR, BPM);
 
-        // Отправка данных в очередь
+        // Push data to the queue
         if (xQueueSend(dataQueue, &message, portMAX_DELAY) != pdPASS) {
             Serial.println("Failed to send data to queue");
         }
@@ -110,14 +110,14 @@ void sendDataTask(void *parameter) {
     char message[128];
     while (true) {
         if (xQueueReceive(dataQueue, &message, portMAX_DELAY) == pdTRUE) {
-            // Проверка подключения
+            // Check the connection
             if (!client.connected()) {
                 reconnect();
             }
 
             client.publish("esp32/data", message, true);
 
-            // Вывод данных о передаче
+            // Print what was sent
             Serial.println(message);
 
             counter++;

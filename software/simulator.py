@@ -1,24 +1,24 @@
 """
-IDometer — симулятор устройства («тело в коробке»).
+IDometer device simulator ("a body in a box").
 
-Генерирует правдоподобные сигналы и шлёт их по протоколу v1 (protocol.py),
-как это будет делать настоящее устройство:
+Generates realistic signals and sends them using protocol v1 (protocol.py),
+just as the real device does:
 
-  * кожная проводимость: медленный тонический уровень + фазические ответы (SCR),
-    включая спонтанные, не связанные ни с какими событиями;
-  * PPG (MAX30102, ИК и красный канал) с пульсом, дыхательной аритмией и шумом;
-  * дыхание.
+  * skin conductance: a slow tonic level + phasic responses (SCRs),
+    including spontaneous ones unrelated to any event;
+  * PPG (MAX30102, IR and red) with heart rate, respiratory arrhythmia and noise;
+  * breathing.
 
-Имитирует и несовершенства реального устройства: собственные часы с дрейфом
-и случайным начальным сдвигом, задержки и «заикания» Wi-Fi, потерю пакетов.
+It also imitates the real device's imperfections: its own clock with drift
+and a random initial offset, Wi-Fi delays and stalls, packet loss.
 
-Главное: симулятор слушает метки приёмника (порт 5006) и с заданной
-вероятностью «отвечает телом» — SCR через 1–2,5 с, замедление, затем
-ускорение пульса, иногда глубокий вдох. Все заложенные ответы записываются
-в sim_truth.csv в единицах времени УСТРОЙСТВА, чтобы анализ мог проверить,
-находит ли он то, что было заложено.
+Most importantly, the simulator listens for the receiver's markers (port 5006)
+and, with a given probability, "responds bodily": an SCR 1–2.5 s later, a heart
+rate dip then rise, sometimes a deep breath. All planted responses are written
+to sim_truth.csv in DEVICE time, so the analysis can check whether it finds
+what was planted.
 
-Запуск:  python simulator.py
+Run:  python simulator.py
          python simulator.py --help
 """
 import argparse
@@ -38,7 +38,7 @@ import protocol as P
 from i18n import tr
 
 
-# ---------------------------------------------------------------- физиология
+# ---------------------------------------------------------------- physiology
 
 def _bateman_peak(tr, td):
     xs = np.linspace(0, 20, 20001)
@@ -63,10 +63,10 @@ class Body:
         self.hr_noise = 0.0
         self.beats = []
         self.next_beat = None
-        self.new_beats = []             # для журнала
+        self.new_beats = []             # for the log
         self.t_last = None
 
-    # --- события
+    # --- events
     def add_scr(self, onset, amp):
         self.scrs.append((onset, amp))
 
@@ -76,7 +76,7 @@ class Body:
     def add_sigh(self, onset):
         self.sighs.append(onset)
 
-    # --- компоненты
+    # --- components
     def _bateman(self, x):
         if x <= 0:
             return 0.0
@@ -109,16 +109,16 @@ class Body:
         return (math.exp(-0.5 * ((x - 0.18) / 0.055) ** 2)
                 + 0.35 * math.exp(-0.5 * ((x - 0.42) / 0.07) ** 2))
 
-    # --- шаг 10 мс
+    # --- 10 ms step
     def step(self, t, slow: bool, spont_cb=None):
         dt = 0.0 if self.t_last is None else t - self.t_last
         self.t_last = t
-        # дыхание
+        # breathing
         self.resp_rate += (14.0 - self.resp_rate) * dt / 30 + self.rng.gauss(0, 0.3) * math.sqrt(max(dt, 0))
         self.resp_phase += 2 * math.pi * self.resp_rate / 60.0 * dt
-        # медленный шум пульса
+        # slow heart-rate noise
         self.hr_noise += -self.hr_noise * dt / 20 + self.rng.gauss(0, 0.6) * math.sqrt(max(dt, 0))
-        # удары
+        # beats
         if self.next_beat is None:
             self.next_beat = t
         while self.next_beat <= t:
@@ -133,11 +133,11 @@ class Body:
 
         eda = resp_out = None
         if slow:
-            # тоника: медленное блуждание
+            # tonic level: slow random walk
             if self.rng.random() < 0.002:
                 self.tonic_target = min(12, max(2, self.tonic_target + self.rng.gauss(0, 0.8)))
             self.tonic += (self.tonic_target - self.tonic) * 0.05 / 60 + self.rng.gauss(0, 0.002)
-            # спонтанные SCR
+            # spontaneous SCRs
             if self.rng.random() < self.spont_rate * 0.05:
                 amp = self.rng.uniform(0.05, 0.25)
                 self.add_scr(t, amp)
@@ -151,10 +151,10 @@ class Body:
         return ir, red, eda, resp_out
 
 
-# ---------------------------------------------------------------- «Wi-Fi»
+# ---------------------------------------------------------------- Wi-Fi
 
 class NetSender(threading.Thread):
-    """Отправка с задержками, «заиканиями» и потерями. Порядок пакетов сохраняется."""
+    """Sending with delays, stalls and losses. Packet order is preserved."""
 
     def __init__(self, addr, rng, loss, jitter_ms, stall_every_s):
         super().__init__(daemon=True)
@@ -202,7 +202,7 @@ class NetSender(threading.Thread):
                 pass
 
 
-# ---------------------------------------------------------------- основной цикл
+# ---------------------------------------------------------------- main loop
 
 def main():
     ap = argparse.ArgumentParser(description="IDometer device simulator")
@@ -231,15 +231,15 @@ def main():
     net = NetSender((args.host, args.port), rng, args.loss, args.jitter_ms, args.stall_every)
     net.start()
 
-    # часы устройства: свой начальный сдвиг и дрейф
+    # device clock: its own initial offset and drift
     t_start = time.perf_counter()
-    dev_offset = rng.uniform(5, 50)          # «устройство включено N секунд назад»
+    dev_offset = rng.uniform(5, 50)          # "the device was switched on N seconds ago"
     k_drift = 1 + args.drift_ppm * 1e-6
 
     def dev_us(t):
         return int(round(((t - t_start) * k_drift + dev_offset) * 1e6))
 
-    # журнал истины
+    # ground-truth log
     truth_f = open(args.truth, "w", newline="", encoding="utf-8")
     truth = csv.writer(truth_f)
     truth.writerow(["kind", "label", "stim_device_us", "onset_device_us", "scr_amp_uS",
@@ -251,7 +251,7 @@ def main():
     def on_spont(t, amp):
         truth.writerow(["spontaneous", "", "", dev_us(t), f"{amp:.4f}", 0, 0])
 
-    # метки от приёмника
+    # markers from the receiver
     marks = queue.Queue()
 
     def listen():
@@ -280,7 +280,7 @@ def main():
             if args.duration and t_ready - t_start > args.duration:
                 break
 
-            # обработать метки, пришедшие к этому моменту
+            # handle markers that have arrived by now
             while not marks.empty():
                 t_stim, label = marks.get()
                 cnt = label_counts.get(label, 0)
@@ -309,7 +309,7 @@ def main():
                 a, b, e, r = body.step(t, slow, on_spont)
                 ir[i], red[i] = a, b
                 if slow:
-                    eda.append(round(e * 1000))       # нС
+                    eda.append(round(e * 1000))       # nS
                     resp.append(round(r * 1000))
             for bt in body.new_beats:
                 beats.writerow([dev_us(bt)])

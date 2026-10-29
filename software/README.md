@@ -52,9 +52,9 @@ suggests an effect.
 
 ## Language and marker names
 
-Set `"language"` in `config.json` (`"en"`, `"ru"`). Texts live in `lang/`.
-To add a language, copy `lang/en.json` to e.g. `lang/uk.json`, translate the
-values (keep the `{placeholders}`), and set `"language": "uk"`.
+Set `"language"` in `config.json` (`"en"`, `"uk"`). Texts live in `lang/`.
+To add a language, copy `lang/en.json` to e.g. `lang/de.json`, translate the
+values (keep the `{placeholders}`), and set `"language": "de"`.
 
 Custom marker names: add to `config.json`
 `"markers": {"1": "Question", "2": "Reflection", ...}`. Without it, the
