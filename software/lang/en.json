@@ -55,6 +55,8 @@
   "an_summary": "  duration {dur:.0f} s, packets {got} of {exp} (lost {lost}), device clock drift {drift:+.1f} ppm",
   "an_noise": "  EDA noise {noise:.4f} {units}, response threshold {thr:.3f} {units}",
   "an_beats": "  beats found {n}, median heart rate {hr:.0f} bpm",
+  "an_beats_rejected": "  beat intervals rejected as artefacts: {n} ({pct:.1f}%)",
+  "an_beats_poor": "  WARNING: more than 10% rejected — check the pulse sensor contact; heart-rate results are unreliable.",
   "an_table_head": "\n  Marker type           n   SCR found  mean amp., {units}   HR 0.5–3 s / 3–8 s",
   "an_chance": "  Chance level: a \"response\" was found in {pct:.0f}% of {n} windows without markers — compare the marker response rate with this.",
   "an_chance_none": "  Chance level: not enough long gaps without markers.",

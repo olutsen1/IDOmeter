@@ -31,7 +31,7 @@ import breathing as BR
 import protocol as P
 from i18n import tr
 from clocksync import fit_global
-from receiver_core import detect_beats
+from receiver_core import clean_ibi, detect_beats
 
 SCR_MIN_US = 0.05          # "response present" threshold, µS (typically 0.01–0.05)
 EDA_WIN = (-3.0, 12.0)
@@ -123,11 +123,16 @@ def main():
     sign = -1 if meta["config"].get("invert_ppg", True) else 1
     beats = detect_beats(tf, sign * fast[:, 3].astype(float))
     ibi = np.diff(beats)
-    okb = (ibi > 0.33) & (ibi < 1.6)
+    okb = clean_ibi(ibi)
     hr_t = beats[1:][okb]
     hr_v = 60.0 / ibi[okb]
+    hr_plot = np.where(okb, 60.0 / np.where(ibi > 0, ibi, np.nan), np.nan)   # gaps at rejected beats
     print(tr("an_noise", noise=noise, thr=thr, units=units))
     print(tr("an_beats", n=len(beats), hr=np.median(hr_v)))
+    n_rej = int((~okb).sum())
+    print(tr("an_beats_rejected", n=n_rej, pct=100.0 * n_rej / max(len(okb), 1)))
+    if n_rej > 0.1 * len(okb):
+        print(tr("an_beats_poor"))
 
     # breathing: the device's sensor channel, or estimated from the PPG when there is none
     tb, yb = BR.from_ppg(tf, fast[:, 3].astype(float))
@@ -229,7 +234,7 @@ def main():
 
     # 5. plots
     if not args.no_plots:
-        plot_all(out, ts, eda, resp_t, resp_y, resp_label, hr_t, hr_v, markers, per_label, eg, hg, units)
+        plot_all(out, ts, eda, resp_t, resp_y, resp_label, beats[1:], hr_plot, markers, per_label, eg, hg, units)
         print(tr("an_outputs", path=out))
 
 

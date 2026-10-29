@@ -60,6 +60,19 @@ Custom marker names: add to `config.json`
 `"markers": {"1": "Question", "2": "Reflection", ...}`. Without it, the
 selected language's defaults are used.
 
+## Heart-rate artefacts
+
+If the finger moves or the sensor is pressed, a beat can be misdetected and
+the heart rate jumps for one point (e.g. 55 → 93 → 52). Such intervals are
+rejected: each beat interval is compared with the mean of its two neighbours,
+and the most deviating one is dropped if it differs by more than 30 %,
+repeating until none does. Real changes, even large ones (a startle, ±20 bpm
+swings during slow deep breathing), change gradually from beat to beat and are
+kept; this was checked on synthetic cases. A rejected beat shows as a gap in the
+heart-rate line, never as an invented value. The raw PPG is always recorded in
+full, and the analysis prints how many intervals were rejected; above 10 % it
+warns that the sensor contact was poor.
+
 ## Breathing without a sensor
 
 If the device sends no breathing channel (the current board has none), the
