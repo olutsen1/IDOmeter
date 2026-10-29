@@ -1,9 +1,18 @@
 # Hardware — IDOmeter V1.0
 
+## Schematic
+
+![Schematic](schematic.svg)
+
+Schematic of the V1.0 prototype board (single-sided, home-etched), traced from
+the PCB and the firmware. Same net label = connected. The ADS1115 (grey) is a
+planned addition, not yet fitted.
+
+## Wiring overview
+
 ![Wiring](wiring.svg)
 
-Module-level wiring of the V1.0 prototype board (single-sided, home-etched),
-traced from the PCB and the firmware. The ADS1115 is a planned addition (dashed).
+The same connections drawn as power and bus rails; dashed = ADS1115 (planned).
 
 ## Connections
 
@@ -42,4 +51,5 @@ Before the first power-up with the ADS1115, measure the voltage between the
 Grove red and black wires: it must be 3.3 V. With the Grove sensor on 3.3 V its
 output cannot exceed the ADS1115 input range.
 
-`wiring.svg` is generated; edit the generator in `tools/make_wiring.py`.
+Both drawings are generated: `tools/make_schematic.py` (needs `schemdraw`)
+and `tools/make_wiring.py`.
