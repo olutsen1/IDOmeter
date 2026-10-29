@@ -33,7 +33,9 @@ import time
 
 import numpy as np
 
+import i18n
 import protocol as P
+from i18n import tr
 
 
 # ---------------------------------------------------------------- физиология
@@ -203,25 +205,26 @@ class NetSender(threading.Thread):
 # ---------------------------------------------------------------- основной цикл
 
 def main():
-    ap = argparse.ArgumentParser(description="Симулятор устройства IDometer")
-    ap.add_argument("--host", default="127.0.0.1", help="адрес приёмника")
+    ap = argparse.ArgumentParser(description="IDometer device simulator")
+    ap.add_argument("--host", default="127.0.0.1", help="receiver address")
     ap.add_argument("--port", type=int, default=P.DATA_PORT)
     ap.add_argument("--feedback-port", type=int, default=P.SIM_FEEDBACK_PORT,
-                    help="порт, на котором симулятор слушает метки")
+                    help="port where the simulator listens for markers")
     ap.add_argument("--p-response", type=float, default=0.8,
-                    help="вероятность телесного ответа на метку")
+                    help="probability of a bodily response to a marker")
     ap.add_argument("--habituation", type=float, default=0.9,
-                    help="множитель амплитуды при каждом повторе метки того же типа")
-    ap.add_argument("--spont", type=float, default=2.0, help="спонтанных SCR в минуту")
-    ap.add_argument("--drift-ppm", type=float, default=40.0, help="дрейф часов устройства")
-    ap.add_argument("--jitter-ms", type=float, default=10.0, help="средняя задержка сети")
+                    help="amplitude factor for each repeat of the same marker type")
+    ap.add_argument("--spont", type=float, default=2.0, help="spontaneous SCRs per minute")
+    ap.add_argument("--drift-ppm", type=float, default=40.0, help="device clock drift")
+    ap.add_argument("--jitter-ms", type=float, default=10.0, help="mean network delay")
     ap.add_argument("--stall-every", type=float, default=40.0,
-                    help="в среднем раз в N секунд Wi-Fi «заикается» (0 — никогда)")
-    ap.add_argument("--loss", type=float, default=0.005, help="доля потерянных пакетов")
-    ap.add_argument("--truth", default="sim_truth.csv", help="журнал заложенных ответов")
-    ap.add_argument("--duration", type=float, default=0, help="остановиться через N секунд")
+                    help="Wi-Fi stalls on average every N seconds (0 = never)")
+    ap.add_argument("--loss", type=float, default=0.005, help="fraction of lost packets")
+    ap.add_argument("--truth", default="sim_truth.csv", help="log of planted responses")
+    ap.add_argument("--duration", type=float, default=0, help="stop after N seconds")
     ap.add_argument("--seed", type=int, default=None)
     args = ap.parse_args()
+    i18n.init_from_config()
 
     rng = random.Random(args.seed)
     body = Body(rng, args.spont)
@@ -264,9 +267,9 @@ def main():
     n = P.DEFAULT_TICKS_PER_PACKET
     block = n / P.BASE_RATE_HZ
     seq = 0
-    print(f"Симулятор: данные -> {args.host}:{args.port}, метки <- :{args.feedback_port}")
-    print(f"Дрейф {args.drift_ppm} ppm, потери {args.loss:.1%}, журнал: {args.truth}")
-    print("Ctrl+C — остановить.")
+    print(tr("sim_start", host=args.host, port=args.port, fb=args.feedback_port))
+    print(tr("sim_params", drift=args.drift_ppm, loss=args.loss, truth=args.truth))
+    print(tr("sim_stop_hint"))
     try:
         while True:
             t_block = t_start + seq * block
@@ -324,7 +327,7 @@ def main():
     finally:
         truth_f.close()
         beats_f.close()
-        print(f"\nОтправлено пакетов: {seq}, «потеряно сетью»: {net.lost}")
+        print(tr("sim_done", n=seq, lost=net.lost))
 
 
 if __name__ == "__main__":

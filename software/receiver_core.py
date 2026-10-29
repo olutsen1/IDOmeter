@@ -15,26 +15,17 @@ import time
 import numpy as np
 from scipy.signal import butter, find_peaks, sosfiltfilt
 
+import i18n
 import protocol as P
+from i18n import tr
 from clocksync import ClockSync
 
 DEFAULT_CONFIG = {
     "listen_port": P.DATA_PORT,
     "sessions_dir": "sessions",
     "window_s": 30,
-    "markers": {
-        "1": "Вопрос",
-        "2": "Отражение",
-        "3": "Эксперимент",
-        "4": "Усиление",
-        "5": "Самораскрытие",
-        "6": "Пауза / тишина",
-        "7": "Тема клиента",
-        "8": "Прикосновение",
-        "9": "Другое",
-        "Space": "Событие",
-        "B": "Базовая линия"
-    },
+    "language": "en",
+    # "markers": {"1": "Question", ...}  — leave out to use the language's defaults
     # Пересчёт сырого EDA.
     #  relative: 0…100 отн. ед. от полной шкалы АЦП; invert=true — для Grove GSR,
     #            у которого напряжение падает, когда проводимость кожи растёт
@@ -53,6 +44,9 @@ def load_config(path="config.json"):
         with open(path, encoding="utf-8") as f:
             user = json.load(f)
         cfg.update(user)
+    i18n.set_language(cfg.get("language", "en"))
+    if not cfg.get("markers"):
+        cfg["markers"] = dict(tr("markers"))
     return cfg
 
 
@@ -70,8 +64,12 @@ def eda_to_uS(raw, cal):
     return raw
 
 
+def eda_is_uS(cal):
+    return cal.get("type") in ("linear", "table")
+
+
 def eda_units(cal):
-    return "мкСм" if cal.get("type") in ("linear", "table") else "отн. ед."
+    return tr("units_uS") if eda_is_uS(cal) else tr("units_rel")
 
 
 # ---------------------------------------------------------------- буферы
@@ -171,8 +169,8 @@ class Recorder:
             "format": "idometer-session-1",
             "started_wall": dt.datetime.now().astimezone().isoformat(),
             "app_t0_wall": app_t0_wall,
-            "time_note": "t — секунды часов приложения (perf_counter от запуска); "
-                         "device_us — часы устройства; packets.csv позволяет пересчитать t",
+            "time_note": "t: seconds of the app clock (perf_counter since start); "
+                         "device_us: device clock; packets.csv allows recomputing t",
             "base_rate_hz": P.BASE_RATE_HZ,
             "slow_rate_hz": P.SLOW_RATE_HZ,
             "config": cfg,

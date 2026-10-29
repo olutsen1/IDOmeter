@@ -21,7 +21,8 @@ import time
 import numpy as np
 
 import protocol as P
-from receiver_core import Engine, eda_units, load_config
+from i18n import tr
+from receiver_core import Engine, eda_is_uS, eda_units, load_config
 
 MARKER_COLORS = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
                  "#42d4f4", "#f032e6", "#9a6324", "#808000", "#000075",
@@ -34,7 +35,7 @@ def run_headless(engine, duration, auto_every):
     """Запись без окна; при auto_every>0 метки ставятся автоматически (для проверки)."""
     labels = [(k, v) for k, v in engine.cfg["markers"].items() if k in "123456789"]
     d = engine.start_recording()
-    print("Запись:", d)
+    print(tr("hl_recording"), d)
     t_end = engine.now() + duration
     next_mark = engine.now() + 20 if auto_every else float("inf")
     rng = random.Random(1)
@@ -46,7 +47,7 @@ def run_headless(engine, duration, auto_every):
             next_mark = engine.now() + auto_every * rng.uniform(0.7, 1.3)
         time.sleep(0.02)
     engine.poll()
-    print("Статистика:", engine.stats(), "меток:", len(engine.markers))
+    print(tr("hl_stats"), engine.stats(), tr("hl_markers"), len(engine.markers))
     engine.stop_recording()
     return d
 
@@ -60,7 +61,7 @@ def run_gui(engine):
 
     sos_disp = butter(2, [0.5, 5.0], btype="band", fs=P.BASE_RATE_HZ, output="sos")
     sos_eda = butter(2, 1.5, fs=P.SLOW_RATE_HZ, output="sos")   # только для показа
-    eda_min_span = 0.5 if eda_units(engine.cfg["eda_calibration"]) == "мкСм" else 2.0
+    eda_min_span = 0.5 if eda_is_uS(engine.cfg["eda_calibration"]) else 2.0
     cfg = engine.cfg
     key_color = {k: MARKER_COLORS[i % len(MARKER_COLORS)]
                  for i, k in enumerate(cfg["markers"].keys())}
@@ -91,16 +92,16 @@ def run_gui(engine):
         glw.ci.layout.setRowStretchFactor(row, height)
         return p
 
-    p_eda = mkplot(0, "Кожная проводимость", eda_units(cfg["eda_calibration"]), 4)
-    p_hr = mkplot(1, "Пульс", "уд/мин", 3)
+    p_eda = mkplot(0, tr("plot_eda"), eda_units(cfg["eda_calibration"]), 4)
+    p_hr = mkplot(1, tr("plot_hr"), tr("units_bpm"), 3)
     p_ppg = mkplot(2, "PPG", "", 2)
-    p_resp = mkplot(3, "Дыхание", "", 2)
+    p_resp = mkplot(3, tr("plot_resp"), "", 2)
     plots = [p_eda, p_hr, p_ppg, p_resp]
     for p in plots[1:]:
         p.setXLink(p_eda)
     for p in plots[:-1]:
         p.getAxis("bottom").setStyle(showValues=False)
-    p_resp.setLabel("bottom", "время", units="с")
+    p_resp.setLabel("bottom", tr("plot_time"), units=tr("units_s"))
     p_ppg.getAxis("left").setStyle(showValues=False)
     p_resp.getAxis("left").setStyle(showValues=False)
 
@@ -121,7 +122,7 @@ def run_gui(engine):
     status.setTextFormat(QtCore.Qt.TextFormat.RichText)
     vl.addWidget(status)
 
-    rec_btn = QtWidgets.QPushButton("● Начать запись  (R)")
+    rec_btn = QtWidgets.QPushButton(tr("btn_rec_start"))
     rec_btn.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
     rec_btn.setMinimumHeight(40)
     vl.addWidget(rec_btn)
@@ -130,28 +131,28 @@ def run_gui(engine):
     vl.addWidget(rec_info)
 
     row = QtWidgets.QHBoxLayout()
-    row.addWidget(QtWidgets.QLabel("Окно, с:"))
+    row.addWidget(QtWidgets.QLabel(tr("window_s")))
     win_spin = QtWidgets.QSpinBox()
     win_spin.setRange(10, 170)
     win_spin.setValue(int(cfg.get("window_s", 30)))
     win_spin.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
     row.addWidget(win_spin)
-    freeze = QtWidgets.QCheckBox("Заморозить (F)")
+    freeze = QtWidgets.QCheckBox(tr("freeze"))
     freeze.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
     row.addWidget(freeze)
     vl.addLayout(row)
 
-    vl.addWidget(QtWidgets.QLabel("<b>Метки</b>"))
+    vl.addWidget(QtWidgets.QLabel(tr("markers_title")))
     grid = QtWidgets.QGridLayout()
     vl.addLayout(grid)
 
     note = QtWidgets.QLineEdit()
     # только по клику: иначе поле заберёт фокус при старте и цифры уйдут в текст, а не в метки
     note.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
-    note.setPlaceholderText("N — заметка, Enter — сохранить")
+    note.setPlaceholderText(tr("note_placeholder"))
     vl.addWidget(note)
 
-    vl.addWidget(QtWidgets.QLabel("<b>Журнал меток</b>"))
+    vl.addWidget(QtWidgets.QLabel(tr("log_title")))
     log = QtWidgets.QListWidget()
     log.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
     vl.addWidget(log, 1)
@@ -189,7 +190,7 @@ def run_gui(engine):
         draw_marker(engine.add_marker(key, label))
 
     def key_name(k):
-        return "Пробел" if k == "Space" else k
+        return tr("key_space") if k == "Space" else k
 
     shortcuts = []
     for i, (k, label) in enumerate(cfg["markers"].items()):
@@ -212,7 +213,7 @@ def run_gui(engine):
         text = note.text().strip()
         t = note_t[0] if note_t[0] is not None else engine.now()
         if text:
-            draw_marker(engine.add_marker("N", "Заметка", text, t=t))
+            draw_marker(engine.add_marker("N", tr("marker_note"), text, t=t))
         note.clear()
         note_t[0] = None
         note.clearFocus()
@@ -231,20 +232,20 @@ def run_gui(engine):
     def toggle_rec():
         if engine.recorder:
             d = engine.stop_recording()
-            rec_btn.setText("● Начать запись  (R)")
+            rec_btn.setText(tr("btn_rec_start"))
             rec_btn.setStyleSheet("")
-            rec_info.setText(f"Сохранено: {d}")
-            sep = QtWidgets.QListWidgetItem("——— запись остановлена ———")
+            rec_info.setText(tr("rec_saved", path=d))
+            sep = QtWidgets.QListWidgetItem(tr("log_rec_stopped"))
             sep.setForeground(QtGui.QColor("#999"))
             log.insertItem(0, sep)
         else:
             d = engine.start_recording()
-            rec_btn.setText("■ Остановить запись  (R)")
-            sep = QtWidgets.QListWidgetItem("——— запись начата, время от 00:00 ———")
+            rec_btn.setText(tr("btn_rec_stop"))
+            sep = QtWidgets.QListWidgetItem(tr("log_rec_started"))
             sep.setForeground(QtGui.QColor("#c62828"))
             log.insertItem(0, sep)
             rec_btn.setStyleSheet("background:#c62828; color:white; font-weight:bold;")
-            rec_info.setText(f"Папка: {d}")
+            rec_info.setText(tr("rec_folder", path=d))
 
     rec_btn.clicked.connect(toggle_rec)
     # в замороженном режиме можно листать графики мышью
@@ -317,28 +318,27 @@ def run_gui(engine):
             state["pk"], state["pk_t"] = engine.packets, time.perf_counter()
             state["st"] = time.perf_counter()
             if engine.connected():
-                conn = f"<span style='color:#2e7d32'>● связь есть</span> ({engine.peer[0]})"
+                conn = f"<span style='color:#2e7d32'>{tr('st_connected')}</span> ({engine.peer[0]})"
             elif engine.packets:
-                conn = "<span style='color:#c62828'>● связь потеряна</span>"
+                conn = f"<span style='color:#c62828'>{tr('st_lost')}</span>"
             else:
-                conn = f"<span style='color:#888'>● жду данные на порту {cfg['listen_port']}</span>"
-            finger = ("палец на датчике" if engine.last_flags & P.FLAG_FINGER
-                      else "<span style='color:#c62828'>нет пальца на датчике</span>")
+                conn = f"<span style='color:#888'>{tr('st_waiting', port=cfg['listen_port'])}</span>"
+            finger = (tr("st_finger") if engine.last_flags & P.FLAG_FINGER
+                      else f"<span style='color:#c62828'>{tr('st_no_finger')}</span>")
             hr_now = f"{engine.beats.hr[-1][1]:.0f}" if engine.beats.hr else "—"
             if not engine.sync.ready:
                 sync = "—"
             elif len(engine.sync.buckets) < 30:     # меньше минуты — наклон ещё неточен
-                sync = f"часы сводятся…, задержка {engine.sync.latency_ms():.0f} мс"
+                sync = tr("st_sync_pending", lat=engine.sync.latency_ms())
             else:
-                sync = (f"дрейф часов {engine.sync.drift_ppm:+.0f} ppm, "
-                        f"задержка {engine.sync.latency_ms():.0f} мс")
+                sync = tr("st_sync", drift=engine.sync.drift_ppm, lat=engine.sync.latency_ms())
             rec = ""
             if engine.recorder:
                 el = now - engine.recorder.meta["record_start_t"]
-                rec = f"<br><b style='color:#c62828'>ЗАПИСЬ {int(el // 60):02d}:{int(el % 60):02d}</b>"
+                rec = f"<br><b style='color:#c62828'>{tr('st_recording', mm=int(el // 60), ss=int(el % 60))}</b>"
             status.setText(
-                f"{conn}<br>{state['rate']:.1f} пакетов/с, потеряно {engine.lost}"
-                f"<br>{finger}<br>пульс {hr_now} уд/мин<br>{sync}{rec}")
+                f"{conn}<br>{tr('st_rate', rate=state['rate'], lost=engine.lost)}"
+                f"<br>{finger}<br>{tr('st_hr', hr=hr_now)}<br>{sync}{rec}")
 
     def safe_refresh():
         # ошибка в одном кадре не должна закрывать программу
@@ -364,15 +364,15 @@ def run_gui(engine):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Приёмник IDometer")
+    ap = argparse.ArgumentParser(description="IDometer receiver")
     ap.add_argument("--config", default="config.json")
     ap.add_argument("--sim", action="store_true",
-                    help="отправлять метки симулятору, чтобы он «отвечал»")
+                    help="send markers to the simulator so it can 'respond'")
     ap.add_argument("--sim-host", default="127.0.0.1")
-    ap.add_argument("--headless", action="store_true", help="без окна (для проверки)")
+    ap.add_argument("--headless", action="store_true", help="no window (for testing)")
     ap.add_argument("--duration", type=float, default=120)
     ap.add_argument("--auto-marks", type=float, default=0,
-                    help="в режиме без окна: ставить метку примерно раз в N секунд")
+                    help="headless: place a marker roughly every N seconds")
     args = ap.parse_args()
 
     cfg = load_config(args.config)

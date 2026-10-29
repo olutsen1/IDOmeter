@@ -18,8 +18,9 @@ see what the body does in the following seconds.
 | `firmware/IDometer_fw/` | ESP32 firmware (TTGO T-Display) for Arduino IDE, ESP32 core 3.x |
 | `legacy/` | the original 2023–2025 prototype firmware (MQTT + Raspberry Pi + Grafana) |
 
-The user interface and documentation are currently in Russian; English (and
-Ukrainian) are planned.
+The interface is in English; Russian is included and other languages can be
+added as a single text file in `software/lang/` (see `software/README.md`).
+Some documentation (`*_ru`) and code comments are still in Russian.
 
 ## Hardware (prototype board IDometer V1.0)
 
@@ -55,7 +56,7 @@ Ukrainian) are planned.
    to markers like a body would.
 4. `python analyze.py sessions\<folder> --truth sim_truth.csv`
 
-Firmware flashing: see `firmware/HOW_TO_FLASH_ru.txt`.
+User guide: `software/README.md`. Firmware flashing: `firmware/HOW_TO_FLASH.md`.
 
 ## Protocol v1
 

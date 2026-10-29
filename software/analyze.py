@@ -28,6 +28,7 @@ import sys
 import numpy as np
 
 import protocol as P
+from i18n import tr
 from clocksync import fit_global
 from receiver_core import detect_beats
 
@@ -81,11 +82,13 @@ def lowpass_eda(x, fs=P.SLOW_RATE_HZ, fc=1.0):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Анализ сессии IDometer")
+    ap = argparse.ArgumentParser(description="IDometer session analysis")
     ap.add_argument("session")
-    ap.add_argument("--truth", help="sim_truth.csv симулятора для проверки")
+    ap.add_argument("--truth", help="simulator sim_truth.csv for verification")
     ap.add_argument("--no-plots", action="store_true")
     args = ap.parse_args()
+    from receiver_core import load_config
+    load_config()   # sets the interface language from config.json
 
     meta, fast, slow, pk, markers = load_session(args.session)
     out = os.path.join(args.session, "analysis")
@@ -94,7 +97,7 @@ def main():
     # 1. часы
     to_host = fit_global(pk[:, 1], pk[:, 2])
     if np.any(np.diff(fast[:, 1]) < 0):
-        print("Внимание: часы устройства шли назад (перезапуск?) — пересчёт времени может быть неточным.")
+        print(tr("an_clock_back"))
     tf = to_host(fast[:, 1])
     ts = to_host(slow[:, 1])
     order = np.argsort(tf)
@@ -103,18 +106,17 @@ def main():
     ts, slow = ts[order], slow[order]
     eda_raw = slow[:, 4]
     eda = lowpass_eda(eda_raw)
-    from receiver_core import eda_units
+    from receiver_core import eda_is_uS, eda_units
     units = eda_units(meta["config"].get("eda_calibration", {}))
     # порог «ответ есть»: не меньше 5 шумов датчика (и не меньше 0,03 мкСм)
     resid = eda_raw - eda
     noise = 1.4826 * np.median(np.abs(resid - np.median(resid)))
-    thr = max(5 * noise, 0.03 if units == "мкСм" else 0.0)
+    thr = max(5 * noise, 0.03 if eda_is_uS(meta["config"].get("eda_calibration", {})) else 0.0)
     resp = slow[:, 5] / 1000.0
     exp_pk = int(pk[-1, 0] - pk[0, 0] + 1)
-    print(f"Сессия: {args.session}")
-    print(f"  длительность {ts[-1] - ts[0]:.0f} с, пакетов {len(pk)} из {exp_pk} "
-          f"(потеряно {exp_pk - len(pk)}), дрейф часов устройства "
-          f"{getattr(to_host, 'drift_ppm', 0):+.1f} ppm")
+    print(tr("an_session", path=args.session))
+    print(tr("an_summary", dur=ts[-1] - ts[0], got=len(pk), exp=exp_pk, lost=exp_pk - len(pk),
+             drift=getattr(to_host, "drift_ppm", 0)))
 
     # 2. пульс
     sign = -1 if meta["config"].get("invert_ppg", True) else 1
@@ -123,8 +125,8 @@ def main():
     okb = (ibi > 0.33) & (ibi < 1.6)
     hr_t = beats[1:][okb]
     hr_v = 60.0 / ibi[okb]
-    print(f"  шум EDA {noise:.4f} {units}, порог ответа {thr:.3f} {units}")
-    print(f"  ударов найдено {len(beats)}, средний пульс {np.median(hr_v):.0f} уд/мин")
+    print(tr("an_noise", noise=noise, thr=thr, units=units))
+    print(tr("an_beats", n=len(beats), hr=np.median(hr_v)))
 
     def hr_at(t):
         return np.interp(t, hr_t, hr_v, left=np.nan, right=np.nan)
@@ -179,7 +181,7 @@ def main():
             w.writeheader()
             w.writerows(rows)
 
-    print(f"\n  Тип метки             n   SCR есть   ср.ампл., {units}   пульс 0,5–3 с / 3–8 с")
+    print(tr("an_table_head", units=units))
     for lab, items in per_label.items():
         rs = [r for r in rows if r["label"] == lab]
         det = sum(r["scr_detected"] for r in rs)
@@ -190,10 +192,9 @@ def main():
               f"{(np.mean(amps) if amps else 0):10.3f}        {dec:+5.1f} / {acc:+5.1f}")
 
     if len(cand):
-        print(f"  Случайный уровень: в {len(cand)} окнах без меток «ответ» найден в "
-              f"{100 * chance_rate:.0f}% — с этим и сравнивайте долю ответов на метки.")
+        print(tr("an_chance", n=len(cand), pct=100 * chance_rate))
     else:
-        print("  Случайный уровень: нет достаточно длинных промежутков без меток.")
+        print(tr("an_chance_none"))
 
     # 4. сверка с симулятором
     if args.truth:
@@ -202,7 +203,7 @@ def main():
     # 5. графики
     if not args.no_plots:
         plot_all(out, ts, eda, resp, hr_t, hr_v, markers, per_label, eg, hg, units)
-        print(f"\nГрафики и таблица: {out}")
+        print(tr("an_outputs", path=out))
 
 
 def check_truth(path, to_host, markers, rows, beats):
@@ -236,17 +237,13 @@ def check_truth(path, to_host, markers, rows, beats):
             onset = to_host(int(r["onset_device_us"])) - mt[j]
             lat_err.append(row["scr_latency_s"] - onset)
     errs = np.array(errs)
-    print("\n=== Сверка с симулятором ===")
+    print(tr("an_truth_head"))
     if len(errs):
-        print(f"  Синхронизация: момент метки vs момент, когда её получило «устройство»: "
-              f"среднее {errs.mean():+.1f} мс, макс. |ошибка| {np.abs(errs).max():.1f} мс "
-              f"(n={len(errs)})")
-    print(f"  Заложенный ответ найден: {tp} из {tp + fn};  "
-          f"ложных ответов при отсутствии заложенного: {fp} из {fp + tn}")
+        print(tr("an_truth_sync", mean=errs.mean(), max=np.abs(errs).max(), n=len(errs)))
+    print(tr("an_truth_found", tp=tp, all=tp + fn, fp=fp, none=fp + tn))
     if amp_err:
-        print(f"  Амплитуда SCR: средняя ошибка {np.mean(amp_err):+.3f} мкСм, "
-              f"разброс {np.std(amp_err):.3f} мкСм")
-        print(f"  Латентность начала ответа: средняя ошибка {np.mean(lat_err):+.2f} с")
+        print(tr("an_truth_amp", mean=np.mean(amp_err), sd=np.std(amp_err)))
+        print(tr("an_truth_lat", mean=np.mean(lat_err)))
     bpath = path.replace(".csv", "_beats.csv")
     if os.path.exists(bpath) and len(beats):
         tb = to_host(np.loadtxt(bpath, delimiter=",", skiprows=1, ndmin=1))
@@ -254,9 +251,7 @@ def check_truth(path, to_host, markers, rows, beats):
         d = np.array([beats[np.argmin(np.abs(beats - b - 0.18))] - b for b in tb])
         good = np.abs(d - 0.18) < 0.15
         ibi_true = np.diff(tb)
-        print(f"  Удары: заложено {len(tb)}, найдено {len(beats)}; "
-              f"разброс момента удара {1000 * np.std(d[good]):.1f} мс "
-              f"(пик волны отстаёт от удара на ~180 мс по построению)")
+        print(tr("an_truth_beats", planted=len(tb), found=len(beats), sd=1000 * np.std(d[good])))
 
 
 def plot_all(out, ts, eda, resp, hr_t, hr_v, markers, per_label, eg, hg, units):
@@ -272,12 +267,12 @@ def plot_all(out, ts, eda, resp, hr_t, hr_v, markers, per_label, eg, hg, units):
     fig, ax = plt.subplots(3, 1, figsize=(16, 8), sharex=True,
                            gridspec_kw={"height_ratios": [3, 2, 1.5]})
     ax[0].plot((ts - t0) / 60, eda, lw=1, color="#1f77b4")
-    ax[0].set_ylabel(f"EDA, {units}")
+    ax[0].set_ylabel(tr("an_y_eda", units=units))
     ax[1].plot((hr_t - t0) / 60, hr_v, lw=0.8, color="#d62728")
-    ax[1].set_ylabel("Пульс, уд/мин")
+    ax[1].set_ylabel(tr("an_y_hr"))
     ax[2].plot((ts - t0) / 60, resp, lw=0.6, color="#2ca02c")
-    ax[2].set_ylabel("Дыхание")
-    ax[2].set_xlabel("минуты")
+    ax[2].set_ylabel(tr("an_y_resp"))
+    ax[2].set_xlabel(tr("an_x_min"))
     seen = set()
     for m in markers:
         x = (m["t"] - t0) / 60
@@ -308,17 +303,17 @@ def plot_all(out, ts, eda, resp, hr_t, hr_v, markers, per_label, eg, hg, units):
             ax[i, 1].plot(hg, h, color=lc[lab], lw=0.6, alpha=0.35)
         with np.errstate(all="ignore"):
             ax[i, 1].plot(hg, np.nanmean(H, 0), color=lc[lab], lw=2.5)
-        ax[i, 0].set_ylabel(f"{lab}\n(n={len(items)})\nΔ {units}")
-        ax[i, 1].set_ylabel("Δ уд/мин")
+        ax[i, 0].set_ylabel(tr("an_y_delta_eda", label=lab, n=len(items), units=units))
+        ax[i, 1].set_ylabel(tr("an_y_delta_hr"))
         for a in ax[i]:
             a.axvline(0, color="k", lw=1)
             a.axhline(0, color="#999", lw=0.5)
             a.axvspan(1, 4, color="#ffd54f", alpha=0.15)
             a.grid(alpha=0.2)
-    ax[0, 0].set_title("Кожная проводимость относительно 2 с до метки")
-    ax[0, 1].set_title("Пульс относительно 3 с до метки")
-    ax[-1, 0].set_xlabel("секунды от метки")
-    ax[-1, 1].set_xlabel("секунды от метки")
+    ax[0, 0].set_title(tr("an_title_eda"))
+    ax[0, 1].set_title(tr("an_title_hr"))
+    ax[-1, 0].set_xlabel(tr("an_x_from_marker"))
+    ax[-1, 1].set_xlabel(tr("an_x_from_marker"))
     fig.tight_layout()
     fig.savefig(os.path.join(out, "responses.png"), dpi=110)
     plt.close(fig)
