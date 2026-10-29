@@ -1,0 +1,21 @@
+# Session recordings contain clients' physiological data. Never publish them.
+sessions/
+**/sessions/
+*.bin
+sim_truth*.csv
+analysis/
+
+# Python
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+
+# Arduino build output
+*.elf
+*.map
+
+# OS
+.DS_Store
+Thumbs.db
