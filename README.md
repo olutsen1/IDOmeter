@@ -16,6 +16,7 @@ see what the body does in the following seconds.
 |---|---|
 | `software/` | Windows/Linux/macOS app (Python): live plots, intervention markers, session recording, response analysis, device simulator |
 | `firmware/IDometer_fw/` | ESP32 firmware (TTGO T-Display) for Arduino IDE, ESP32 core 3.x |
+| `hardware/` | wiring diagram and connection table of the prototype board |
 | `legacy/` | the original 2023–2025 prototype firmware (MQTT + Raspberry Pi + Grafana) |
 
 The interface is in English; Russian is included and other languages can be

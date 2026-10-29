@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 870" width="1300" height="870" font-family="Helvetica, Arial, sans-serif" font-size="14">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="30" y="38" font-size="22" font-weight="bold" fill="#222">IDOmeter V1.0 — wiring</text>
+<text x="30" y="62" fill="#555">Module-level connections, traced from the PCB and firmware. Dashed: ADS1115 external ADC (planned).</text>
+<rect x="40" y="110" width="240" height="560" rx="8" fill="#eceff1" stroke="#455a64" stroke-width="2"/>
+<text x="52" y="134" font-weight="bold">LilyGO TTGO T-Display</text>
+<text x="52" y="152" fill="#555" font-size="12">ESP32 · 1.14″ screen · buttons 0/35</text>
+<text x="268" y="185" text-anchor="end">3V3</text>
+<circle cx="280" cy="180" r="5" fill="#d32f2f"/>
+<text x="268" y="237" text-anchor="end">GND</text>
+<circle cx="280" cy="232" r="5" fill="#212121"/>
+<text x="268" y="289" text-anchor="end">5V (USB)</text>
+<circle cx="280" cy="284" r="5" fill="#ef6c00"/>
+<text x="268" y="341" text-anchor="end">GPIO21  SDA</text>
+<circle cx="280" cy="336" r="5" fill="#1565c0"/>
+<text x="268" y="393" text-anchor="end">GPIO22  SCL</text>
+<circle cx="280" cy="388" r="5" fill="#00897b"/>
+<text x="268" y="445" text-anchor="end">GPIO27  MISO</text>
+<circle cx="280" cy="440" r="5" fill="#6a1b9a"/>
+<text x="268" y="497" text-anchor="end">GPIO26  MOSI</text>
+<circle cx="280" cy="492" r="5" fill="#6a1b9a"/>
+<text x="268" y="549" text-anchor="end">GPIO25  SCK</text>
+<circle cx="280" cy="544" r="5" fill="#6a1b9a"/>
+<text x="268" y="601" text-anchor="end">GPIO33  CS</text>
+<circle cx="280" cy="596" r="5" fill="#6a1b9a"/>
+<text x="268" y="653" text-anchor="end">GPIO36  ADC1 (GSR)</text>
+<circle cx="280" cy="648" r="5" fill="#c9a400"/>
+<line x1="330" y1="120" x2="330" y2="800" stroke="#d32f2f" stroke-width="3"/>
+<text x="330" y="112" text-anchor="middle" font-size="12" font-weight="bold" fill="#d32f2f">3V3</text>
+<line x1="360" y1="120" x2="360" y2="800" stroke="#212121" stroke-width="3"/>
+<text x="360" y="112" text-anchor="middle" font-size="12" font-weight="bold" fill="#212121">GND</text>
+<line x1="390" y1="120" x2="390" y2="800" stroke="#ef6c00" stroke-width="3"/>
+<text x="390" y="112" text-anchor="middle" font-size="12" font-weight="bold" fill="#ef6c00">5V</text>
+<line x1="420" y1="120" x2="420" y2="800" stroke="#1565c0" stroke-width="3"/>
+<text x="420" y="112" text-anchor="middle" font-size="12" font-weight="bold" fill="#1565c0">SDA</text>
+<line x1="450" y1="120" x2="450" y2="800" stroke="#00897b" stroke-width="3"/>
+<text x="450" y="112" text-anchor="middle" font-size="12" font-weight="bold" fill="#00897b">SCL</text>
+<line x1="280" y1="180" x2="330" y2="180" stroke="#d32f2f" stroke-width="3"/>
+<circle cx="330" cy="180" r="5" fill="#d32f2f"/>
+<line x1="280" y1="232" x2="360" y2="232" stroke="#212121" stroke-width="3"/>
+<circle cx="360" cy="232" r="5" fill="#212121"/>
+<line x1="280" y1="284" x2="390" y2="284" stroke="#ef6c00" stroke-width="3"/>
+<circle cx="390" cy="284" r="5" fill="#ef6c00"/>
+<line x1="280" y1="336" x2="420" y2="336" stroke="#1565c0" stroke-width="3"/>
+<circle cx="420" cy="336" r="5" fill="#1565c0"/>
+<line x1="280" y1="388" x2="450" y2="388" stroke="#00897b" stroke-width="3"/>
+<circle cx="450" cy="388" r="5" fill="#00897b"/>
+<rect x="620" y="100" width="300" height="220" rx="8" fill="#e3f2fd" stroke="#37474f" stroke-width="2"/>
+<text x="632" y="122" font-weight="bold">MAX30102 pulse sensor</text>
+<text x="632" y="140" fill="#555" font-size="12">GY-MAX30102 · I²C address 0x57</text>
+<text x="634" y="167">VIN</text>
+<circle cx="620" cy="162" r="5" fill="#d32f2f"/>
+<text x="634" y="201">GND</text>
+<circle cx="620" cy="196" r="5" fill="#212121"/>
+<text x="634" y="235">SCL</text>
+<circle cx="620" cy="230" r="5" fill="#00897b"/>
+<text x="634" y="269">SDA</text>
+<circle cx="620" cy="264" r="5" fill="#1565c0"/>
+<text x="634" y="303">INT  (not connected)</text>
+<line x1="330" y1="162" x2="620" y2="162" stroke="#d32f2f" stroke-width="3"/>
+<circle cx="330" cy="162" r="5" fill="#d32f2f"/>
+<line x1="360" y1="196" x2="620" y2="196" stroke="#212121" stroke-width="3"/>
+<circle cx="360" cy="196" r="5" fill="#212121"/>
+<line x1="450" y1="230" x2="620" y2="230" stroke="#00897b" stroke-width="3"/>
+<circle cx="450" cy="230" r="5" fill="#00897b"/>
+<line x1="420" y1="264" x2="620" y2="264" stroke="#1565c0" stroke-width="3"/>
+<circle cx="420" cy="264" r="5" fill="#1565c0"/>
+<rect x="620" y="330" width="300" height="254" rx="8" fill="#fafafa" stroke="#37474f" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="632" y="352" font-weight="bold">ADS1115 16-bit ADC  (planned)</text>
+<text x="632" y="370" fill="#555" font-size="12">I²C address 0x48 · VDD from 3V3 only</text>
+<text x="634" y="397">A0</text>
+<text x="634" y="431">VDD</text>
+<circle cx="620" cy="426" r="5" fill="#d32f2f"/>
+<text x="634" y="465">GND</text>
+<circle cx="620" cy="460" r="5" fill="#212121"/>
+<text x="634" y="499">SCL</text>
+<circle cx="620" cy="494" r="5" fill="#00897b"/>
+<text x="634" y="533">SDA</text>
+<circle cx="620" cy="528" r="5" fill="#1565c0"/>
+<text x="634" y="567">ADDR → GND</text>
+<line x1="330" y1="426" x2="620" y2="426" stroke="#d32f2f" stroke-width="3" stroke-dasharray="8 6"/>
+<circle cx="330" cy="426" r="5" fill="#d32f2f"/>
+<line x1="360" y1="460" x2="620" y2="460" stroke="#212121" stroke-width="3" stroke-dasharray="8 6"/>
+<circle cx="360" cy="460" r="5" fill="#212121"/>
+<line x1="450" y1="494" x2="620" y2="494" stroke="#00897b" stroke-width="3" stroke-dasharray="8 6"/>
+<circle cx="450" cy="494" r="5" fill="#00897b"/>
+<line x1="420" y1="528" x2="620" y2="528" stroke="#1565c0" stroke-width="3" stroke-dasharray="8 6"/>
+<circle cx="420" cy="528" r="5" fill="#1565c0"/>
+<rect x="1000" y="330" width="250" height="186" rx="8" fill="#e3f2fd" stroke="#37474f" stroke-width="2"/>
+<text x="1012" y="352" font-weight="bold">Grove GSR v1.2</text>
+<text x="1012" y="370" fill="#555" font-size="12">white wire unused</text>
+<text x="1014" y="397">SIG  (yellow)</text>
+<circle cx="1000" cy="392" r="5" fill="#c9a400"/>
+<text x="1014" y="431">VCC  (red)</text>
+<circle cx="1000" cy="426" r="5" fill="#d32f2f"/>
+<text x="1014" y="465">GND  (black)</text>
+<circle cx="1000" cy="460" r="5" fill="#212121"/>
+<text x="1014" y="499">Electrodes  (2-pin)</text>
+<polyline points="330,640 960,640 960,426 1000,426" fill="none" stroke="#d32f2f" stroke-width="3"/>
+<circle cx="330" cy="640" r="5" fill="#d32f2f"/>
+<polyline points="360,660 980,660 980,460 1000,460" fill="none" stroke="#212121" stroke-width="3"/>
+<circle cx="360" cy="660" r="5" fill="#212121"/>
+<polyline points="1000,392 940,392 940,620 296,620 296,648 280,648" fill="none" stroke="#c9a400" stroke-width="3"/>
+<line x1="920" y1="392" x2="940" y2="392" stroke="#c9a400" stroke-width="3" stroke-dasharray="8 6"/>
+<circle cx="920" cy="392" r="5" fill="#c9a400"/>
+<circle cx="940" cy="392" r="5" fill="#c9a400"/>
+<rect x="620" y="690" width="300" height="152" rx="8" fill="#e3f2fd" stroke="#37474f" stroke-width="2"/>
+<text x="632" y="712" font-weight="bold">microSD module HW-125</text>
+<text x="632" y="730" fill="#555" font-size="12">SPI on HSPI pins · own 3.3 V regulator</text>
+<text x="634" y="757">VCC</text>
+<circle cx="620" cy="752" r="5" fill="#ef6c00"/>
+<text x="634" y="791">GND</text>
+<circle cx="620" cy="786" r="5" fill="#212121"/>
+<text x="634" y="825">MISO / MOSI / SCK / CS</text>
+<circle cx="620" cy="820" r="5" fill="#6a1b9a"/>
+<line x1="390" y1="752" x2="620" y2="752" stroke="#ef6c00" stroke-width="3"/>
+<circle cx="390" cy="752" r="5" fill="#ef6c00"/>
+<line x1="360" y1="786" x2="620" y2="786" stroke="#212121" stroke-width="3"/>
+<circle cx="360" cy="786" r="5" fill="#212121"/>
+<line x1="280" y1="440" x2="312" y2="440" stroke="#6a1b9a" stroke-width="3"/>
+<line x1="280" y1="492" x2="312" y2="492" stroke="#6a1b9a" stroke-width="3"/>
+<line x1="280" y1="544" x2="312" y2="544" stroke="#6a1b9a" stroke-width="3"/>
+<line x1="280" y1="596" x2="312" y2="596" stroke="#6a1b9a" stroke-width="3"/>
+<polyline points="312,440 312,830 560,830 560,820 620,820" fill="none" stroke="#6a1b9a" stroke-width="6"/>
+<text x="322" y="846" fill="#6a1b9a" font-size="12">4 SPI lines: 27→MISO, 26→MOSI, 25→SCK, 33→CS</text>
+<text x="1000" y="710" font-weight="bold" fill="#333" font-size="13">Notes</text>
+<text x="1000" y="730"  fill="#333" font-size="13">• Grove GSR runs on 3.3 V: its output</text>
+<text x="1000" y="750"  fill="#333" font-size="13">  stays within the ADC input range.</text>
+<text x="1000" y="770"  fill="#333" font-size="13">• ADS1115: VDD on 3V3, never 5V.</text>
+<text x="1000" y="790"  fill="#333" font-size="13">• A1–A3 free (A1: breathing, later).</text>
+<text x="1000" y="810"  fill="#333" font-size="13">• GPIO36 can stay connected to SIG.</text>
+<text x="1000" y="830"  fill="#333" font-size="13">• Lines crossing without a dot</text>
+<text x="1000" y="850"  fill="#333" font-size="13">  are not connected.</text>
+</svg>
