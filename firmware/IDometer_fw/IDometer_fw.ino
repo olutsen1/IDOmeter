@@ -1,21 +1,21 @@
 // =====================================================================
-//  IDometer — прошивка 2.2 для платы IDometer V1.0 (TTGO T-Display ESP32)
+//  IDometer firmware 2.2 for the IDometer V1.0 board (TTGO T-Display ESP32)
 //
-//  Устройство НЕ знает реального времени: оно нумерует пакеты и ставит
-//  метку по собственному счётчику тактов. Время во время компьютера
-//  переводит программа-приёмник. Формат пакета — протокол v1 (protocol.py).
+//  The device does NOT know real time: it numbers the packets and stamps
+//  them with its own tick counter. The receiver app converts this to
+//  computer time. Packet format: protocol v1 (protocol.py).
 //
-//  Задачи:
-//    sampler  (ядро 1, высокий приоритет) — по аппаратному таймеру 100 Гц
-//             читает PPG (MAX30102) и 20 Гц — GSR, собирает пакеты по 100 мс
-//    sender   (ядро 0)  — отправка по Wi-Fi (UDP) и резервная запись на SD
-//    display  (ядро 1, низкий приоритет) — экран и кнопка
-//    wifi     (ядро 0, низкий приоритет) — подключение, режим настройки, команды
-//             монитора порта (см. wifi_setup.h)
+//  Tasks:
+//    sampler  (core 1, high priority) — on a 100 Hz hardware timer reads
+//             PPG (MAX30102) and, at 20 Hz, GSR; builds 100 ms packets
+//    sender   (core 0)  — sends over Wi-Fi (UDP) and writes the SD backup
+//    display  (core 1, low priority) — screen and button
+//    wifi     (core 0, low priority) — connection, setup mode, serial
+//             monitor commands (see wifi_setup.h)
 //
-//  Нужно: плата «ESP32 Dev Module», ядро ESP32 3.x;
-//  библиотеки «Adafruit ST7735 and ST7789 Library» (с зависимостями)
-//  и «SparkFun MAX3010x Pulse and Proximity Sensor Library».
+//  Requires: board "ESP32 Dev Module", ESP32 core 3.x;
+//  libraries "Adafruit ST7735 and ST7789 Library" (with dependencies)
+//  and "SparkFun MAX3010x Pulse and Proximity Sensor Library".
 // =====================================================================
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -30,18 +30,18 @@
 
 #define FW_VERSION "2.2"
 
-// ---- протокол v1
+// ---- protocol v1
 constexpr int      BASE_HZ  = 100;
-constexpr int      SLOW_DIV = 5;                 // EDA 20 Гц
-constexpr int      TICKS    = 10;                // тактов в пакете (100 мс)
+constexpr int      SLOW_DIV = 5;                 // EDA 20 Hz
+constexpr int      TICKS    = 10;                // ticks per packet (100 ms)
 constexpr int      NSLOW    = TICKS / SLOW_DIV;
 constexpr uint32_t TICK_US  = 1000000 / BASE_HZ;
 constexpr size_t   PKT_SIZE = 20 + TICKS * 4 * 2 + NSLOW * 4 * 2;
 constexpr uint16_t FLAG_FINGER = 1 << 0;
 constexpr uint16_t FLAG_SD_REC = 1 << 1;
-constexpr int      GSR_OVERSAMPLE = 16;          // отсчёт EDA = сумма 16 чтений АЦП
+constexpr int      GSR_OVERSAMPLE = 16;          // one EDA sample = sum of 16 ADC reads
 
-// ---- выводы T-Display (зашиты в плате)
+// ---- T-Display pins (fixed by the board)
 constexpr int TFT_MOSI_PIN = 19, TFT_SCLK_PIN = 18, TFT_CS_PIN = 5,
               TFT_DC_PIN = 16, TFT_RST_PIN = 23, TFT_BL_PIN = 4;
 constexpr int BAT_ADC_PIN = 34, BAT_EN_PIN = 14;
@@ -58,14 +58,14 @@ QueueHandle_t qSend;
 TaskHandle_t hSampler;
 hw_timer_t* timer = nullptr;
 
-// ---- состояние для экрана (пишет одна задача, читает другая)
+// ---- state for the screen (written by one task, read by another)
 volatile bool     stSensorOk = false, stFinger = false, stSdOk = false, stLinked = false;
 volatile uint32_t stIr = 0, stSent = 0, stQueueDrop = 0, stPpgDup = 0, stPpgDrop = 0;
 volatile int32_t  stEda = 0;
 volatile uint32_t stBatMv = 0;
 
 // =====================================================================
-//  Таймер и выборка
+//  Timer and sampling
 // =====================================================================
 void IRAM_ATTR onTick() {
   BaseType_t hp = pdFALSE;
@@ -83,16 +83,16 @@ void samplerTask(void*) {
   uint32_t ir[TICKS], red[TICKS];
   int32_t eda[NSLOW], resp[NSLOW];
 
-  // Датчик пульса живёт на своём генераторе, чуть отличающемся от нашего кварца.
-  // Маленький буфер сглаживает разницу: лишний отсчёт отбрасываем, недостающий повторяем.
+  // The pulse sensor runs on its own oscillator, slightly different from our crystal.
+  // A small buffer absorbs the difference: an extra sample is dropped, a missing one repeated.
   uint32_t rIr[8], rRed[8];
   int rh = 0, rn = 0;
   uint32_t lastIr = 0, lastRed = 0;
 
   for (;;) {
-    uint32_t n = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);   // сколько тактов прошло
+    uint32_t n = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);   // ticks elapsed
     while (n--) {
-      // ---- PPG, 100 Гц
+      // ---- PPG, 100 Hz
       if (stSensorOk) {
         sensor.check();
         while (sensor.available()) {
@@ -110,15 +110,15 @@ void samplerTask(void*) {
       ir[k] = lastIr;
       red[k] = lastRed;
 
-      // ---- GSR, 20 Гц: без усреднения во времени, только 16 быстрых чтений против шума АЦП
+      // ---- GSR, 20 Hz: no averaging over time, only 16 fast reads against ADC noise
       if (k % SLOW_DIV == 0) {
         int32_t s = 0;
         for (int i = 0; i < GSR_OVERSAMPLE; i++) s += analogRead(PIN_GSR);
         eda[k / SLOW_DIV] = s;
-        resp[k / SLOW_DIV] = 0;            // канала дыхания пока нет
+        resp[k / SLOW_DIV] = 0;            // no breathing channel yet
         stEda = s;
       }
-      // ---- батарея раз в секунду (здесь же, чтобы АЦП трогала одна задача)
+      // ---- battery once a second (here, so that only one task uses the ADC)
       if (tick % 100 == 50) stBatMv = analogReadMilliVolts(BAT_ADC_PIN) * 2;
 
       k++;
@@ -140,7 +140,7 @@ void samplerTask(void*) {
         put(p, red, sizeof red);
         put(p, eda, sizeof eda);
         put(p, resp, sizeof resp);
-        if (xQueueSend(qSend, &pk, 0) != pdTRUE) stQueueDrop = stQueueDrop + 1;   // никогда не ждём
+        if (xQueueSend(qSend, &pk, 0) != pdTRUE) stQueueDrop = stQueueDrop + 1;   // never wait
         seq++;
         k = 0;
       }
@@ -149,7 +149,7 @@ void samplerTask(void*) {
 }
 
 // =====================================================================
-//  Отправка и SD
+//  Sending and SD
 // =====================================================================
 void senderTask(void*) {
   WiFiUDP udp;
@@ -164,7 +164,7 @@ void senderTask(void*) {
 
     if (WiFi.status() == WL_CONNECTED) {
       if (!udpOn) udpOn = udp.begin(5007);
-      // ответ компьютера «IDHI»: теперь знаем его адрес
+      // the computer's "IDHI" reply: now we know its address
       while (udp.parsePacket() > 0) {
         char buf[8];
         int r = udp.read(buf, sizeof buf);
@@ -193,7 +193,7 @@ void senderTask(void*) {
 }
 
 // =====================================================================
-//  Экран и кнопка
+//  Screen and button
 // =====================================================================
 void line(int y, uint8_t size, uint16_t color, const char* fmt, ...) {
   char s[48];
@@ -225,7 +225,7 @@ void displayTask(void*) {
   bool screenOn = true, btnPrev = true;
   uint32_t lastDraw = 0;
   for (;;) {
-    // кнопка: экран вкл/выкл (чтобы не отвлекал клиента)
+    // button: screen on/off (so it does not distract the client)
     bool btn = digitalRead(PIN_BTN_SCREEN);
     if (btnPrev && !btn) {
       screenOn = !screenOn;
@@ -238,7 +238,7 @@ void displayTask(void*) {
       bool wifi = WiFi.status() == WL_CONNECTED;
       line(0, 2, ST77XX_CYAN, "IDometer " FW_VERSION);
       if (stApOn && !wifi) {
-        // режим настройки: подсказка вместо статуса сети
+        // setup mode: instructions instead of network status
         line(22, 2, ST77XX_YELLOW, "WiFi SETUP");
         line(40, 1, ST77XX_WHITE, "Phone: join WiFi '" AP_NAME "'");
         line(52, 2, ST77XX_YELLOW, "open 192.168.4.1");
@@ -265,7 +265,7 @@ void displayTask(void*) {
 }
 
 // =====================================================================
-//  Запуск
+//  Startup
 // =====================================================================
 void openSdFile() {
 #if SD_BACKUP
@@ -287,13 +287,13 @@ void setup() {
   delay(200);
   Serial.println("\nIDometer " FW_VERSION);
 
-  pinMode(PIN_BTN_SCREEN, INPUT);       // на GPIO35 нет внутренней подтяжки; на плате она есть
+  pinMode(PIN_BTN_SCREEN, INPUT);       // GPIO35 has no internal pull-up; the board has one
   pinMode(BAT_EN_PIN, OUTPUT);
-  digitalWrite(BAT_EN_PIN, HIGH);       // включает делитель измерения батареи
+  digitalWrite(BAT_EN_PIN, HIGH);       // enables the battery voltage divider
   analogReadResolution(12);
   analogSetPinAttenuation(PIN_GSR, ADC_11db);
 
-  // экран
+  // screen
   pinMode(TFT_BL_PIN, OUTPUT);
   digitalWrite(TFT_BL_PIN, HIGH);
   SPI.begin(TFT_SCLK_PIN, -1, TFT_MOSI_PIN, TFT_CS_PIN);
@@ -303,7 +303,7 @@ void setup() {
   line(0, 2, ST77XX_CYAN, "IDometer " FW_VERSION);
   line(30, 2, ST77XX_WHITE, "starting...");
 
-  // датчик пульса: 100 Гц, ИК + красный, без усреднения в датчике
+  // pulse sensor: 100 Hz, IR + red, no averaging inside the sensor
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   if (sensor.begin(Wire, I2C_SPEED_FAST)) {
     sensor.setup(PPG_LED_POWER, 1, 2, 100, 411, 4096);
@@ -315,7 +315,7 @@ void setup() {
 
   openSdFile();
 
-  // правая кнопка при включении — сразу режим настройки Wi-Fi
+  // right button held at power-on: go straight to Wi-Fi setup mode
   line(60, 1, ST77XX_YELLOW, "Hold right button: WiFi setup");
   uint32_t t = millis();
   bool held = true;
@@ -323,18 +323,18 @@ void setup() {
   forceApAtBoot = held;
   tft.fillScreen(ST77XX_BLACK);
 
-  qSend = xQueueCreate(64, sizeof(Packet));   // 6,4 с запаса на случай заминок Wi-Fi/SD
+  qSend = xQueueCreate(64, sizeof(Packet));   // 6.4 s of slack for Wi-Fi/SD hiccups
   xTaskCreatePinnedToCore(samplerTask, "sampler", 4096, nullptr, configMAX_PRIORITIES - 2, &hSampler, 1);
   xTaskCreatePinnedToCore(senderTask, "sender", 6144, nullptr, 3, nullptr, 0);
   xTaskCreatePinnedToCore(displayTask, "display", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(wifiTask, "wifi", 8192, nullptr, 1, nullptr, 0);
 
-  // аппаратный таймер 100 Гц (API ядра ESP32 3.x)
+  // hardware timer 100 Hz (ESP32 core 3.x API)
   timer = timerBegin(1000000);
   timerAttachInterrupt(timer, &onTick);
   timerAlarm(timer, TICK_US, true, 0);
 }
 
 void loop() {
-  vTaskDelete(nullptr);   // всё делают задачи
+  vTaskDelete(nullptr);   // the tasks do all the work
 }

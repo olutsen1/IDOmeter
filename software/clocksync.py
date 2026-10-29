@@ -1,14 +1,14 @@
 """
-Перевод времени устройства во время компьютера.
+Converts device time to computer time.
 
-Каждый пакет даёт пару (t_end устройства, момент прихода на компьютер).
-Момент прихода = истинное время + задержка сети (всегда >= 0, иногда большая).
-Поэтому берём не среднее, а НИЖНЮЮ огибающую: минимальное смещение в каждом
-коротком интервале, и по этим минимумам строим прямую. Наклон прямой учитывает
-дрейф кварца устройства (обычно десятки ppm), сдвиг — разницу часов.
+Each packet gives a pair (device t_end, arrival time on the computer).
+Arrival = true time + network delay (always >= 0, sometimes large).
+So we take not the mean but the LOWER envelope: the minimum offset in each
+short interval, and fit a line through these minima. The slope accounts for
+the device crystal drift (typically tens of ppm), the intercept for the clock offset.
 
-Точность на практике: единицы миллисекунд даже при Wi-Fi с задержками
-в сотни миллисекунд.
+Accuracy in practice: a few milliseconds, even over Wi-Fi with delays of
+hundreds of milliseconds.
 """
 from collections import OrderedDict
 
@@ -16,7 +16,7 @@ import numpy as np
 
 
 def _fit_lower_envelope(d_s, off, iterations=2):
-    """Линейная регрессия по минимумам с отбрасыванием выбросов вверх."""
+    """Linear regression over the minima, rejecting upward outliers."""
     d_s = np.asarray(d_s, float)
     off = np.asarray(off, float)
     mask = np.ones(len(d_s), bool)
@@ -33,12 +33,12 @@ def _fit_lower_envelope(d_s, off, iterations=2):
 
 
 class ClockSync:
-    """Онлайн-оценка соответствия «время устройства → время компьютера» (секунды)."""
+    """Online estimate of the device time -> computer time mapping (seconds)."""
 
     def __init__(self, bucket_s=2.0, window_buckets=60):
         self.bucket_s = bucket_s
         self.window = window_buckets
-        self.buckets = OrderedDict()   # ключ -> (d_s, offset)
+        self.buckets = OrderedDict()   # key -> (d_s, offset)
         self._a = None
         self._b = 0.0
         self._ref = 0.0
@@ -82,17 +82,17 @@ class ClockSync:
 
     @property
     def drift_ppm(self):
-        return -self._b * 1e6   # >0: часы устройства спешат
+        return -self._b * 1e6   # >0: the device clock runs fast
 
     def latency_ms(self):
-        """Типичная задержка сверх минимальной (медиана), мс — показатель качества связи."""
+        """Typical delay above the minimum (median), ms: a link-quality indicator."""
         if not self.recent_offsets or self._a is None:
             return float("nan")
         return 1000 * (np.median(self.recent_offsets[-50:]) - min(self.recent_offsets[-50:]))
 
 
 def fit_global(d_end_us, host_s, bucket_s=2.0):
-    """Подгонка по всей сессии сразу (для анализа после записи). Возвращает функцию."""
+    """Fit over the whole session at once (for post-session analysis). Returns a function."""
     d_end_us = np.asarray(d_end_us, float)
     host_s = np.asarray(host_s, float)
     off = host_s - d_end_us / 1e6

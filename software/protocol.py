@@ -1,33 +1,33 @@
 """
-IDometer — протокол пакета данных, версия 1.
+IDometer data packet protocol, version 1.
 
-Один и тот же формат используют симулятор (simulator.py) и будущая прошивка ESP32.
-Транспорт: UDP-датаграммы на порт приёмника (по умолчанию 5005).
+The same format is used by the simulator (simulator.py) and the ESP32 firmware.
+Transport: UDP datagrams to the receiver port (default 5005).
 
-Принцип: устройство НЕ знает реального времени. Оно нумерует пакеты и ставит
-метку по своему внутреннему счётчику микросекунд. Перевод во время компьютера
-делает приёмник (см. clocksync.py).
+Principle: the device does NOT know real time. It numbers the packets and
+stamps them with its own microsecond counter. The receiver converts this to
+computer time (see clocksync.py).
 
-Структура пакета DATA (все числа little-endian):
+DATA packet layout (all numbers little-endian):
 
-  Заголовок, 20 байт:
-    magic     2 байта  b'ID'
+  Header, 20 bytes:
+    magic     2 bytes  b'ID'
     version   uint8    1
     type      uint8    1 = DATA
-    seq       uint32   номер пакета, растёт на 1, переполнение допустимо
-    t0_us     uint64   время устройства (мкс) для ПЕРВОГО такта в пакете
-    n_ticks   uint16   число тактов базовой частоты в пакете (кратно SLOW_DIV)
-    flags     uint16   бит 0: палец на датчике PPG; бит 1: идёт запись на SD;
-                       остальные зарезервированы
+    seq       uint32   packet number, increments by 1, wraps around
+    t0_us     uint64   device time (µs) of the FIRST tick in the packet
+    n_ticks   uint16   number of base-rate ticks in the packet (multiple of SLOW_DIV)
+    flags     uint16   bit 0: finger on the PPG sensor; bit 1: SD recording on;
+                       other bits reserved
 
-  Данные:
-    ppg_ir    n_ticks           × uint32   (MAX30102, 18 бит)
+  Data:
+    ppg_ir    n_ticks           × uint32   (MAX30102, 18 bit)
     ppg_red   n_ticks           × uint32
-    eda       n_ticks/SLOW_DIV  × int32    (сырые отсчёты АЦП или нС в симуляторе)
-    resp      n_ticks/SLOW_DIV  × int32    (дыхание; 0, если канала нет)
+    eda       n_ticks/SLOW_DIV  × int32    (raw ADC counts, or nS in the simulator)
+    resp      n_ticks/SLOW_DIV  × int32    (breathing; 0 if there is no such channel)
 
-  Такт k пакета имеет время устройства t0_us + k * TICK_US.
-  Медленный отсчёт j относится к такту j * SLOW_DIV.
+  Tick k of a packet has device time t0_us + k * TICK_US.
+  Slow sample j belongs to tick j * SLOW_DIV.
 """
 import struct
 from dataclasses import dataclass
@@ -39,10 +39,10 @@ VERSION = 1
 TYPE_DATA = 1
 
 BASE_RATE_HZ = 100          # PPG
-SLOW_DIV = 5                # EDA и дыхание: 100 / 5 = 20 Гц
+SLOW_DIV = 5                # EDA and breathing: 100 / 5 = 20 Hz
 SLOW_RATE_HZ = BASE_RATE_HZ // SLOW_DIV
 TICK_US = 1_000_000 // BASE_RATE_HZ
-DEFAULT_TICKS_PER_PACKET = 10   # 100 мс на пакет
+DEFAULT_TICKS_PER_PACKET = 10   # 100 ms per packet
 
 FLAG_FINGER = 1 << 0
 FLAG_SD_REC = 1 << 1
@@ -64,7 +64,7 @@ class DataPacket:
 
     @property
     def t_end_us(self) -> int:
-        """Время устройства сразу после последнего такта (момент готовности пакета)."""
+        """Device time right after the last tick (when the packet is complete)."""
         return self.t0_us + self.n_ticks * TICK_US
 
     def fast_times_us(self) -> np.ndarray:
@@ -109,7 +109,7 @@ def decode(buf: bytes) -> DataPacket:
                       eda.astype(np.int64), resp.astype(np.int64))
 
 
-# Служебное сообщение приёмника симулятору: b"MARK <метка>" (UTF-8).
-# Нужно только для проверки цепочки: симулятор «реагирует телом» на метки.
+# Control message from the receiver to the simulator: b"MARK <label>" (UTF-8).
+# Used only for end-to-end testing: the simulator "responds bodily" to markers.
 SIM_FEEDBACK_PORT = 5006
 DATA_PORT = 5005

@@ -1,17 +1,17 @@
 """
-IDometer — приёмник: живые графики, метки интервенций, запись сессии.
+IDometer receiver: live plots, intervention markers, session recording.
 
-Запуск:
-    python receiver.py            — работа с настоящим устройством
-    python receiver.py --sim      — с симулятором (метки уходят симулятору,
-                                    и он «отвечает телом»)
+Run:
+    python receiver.py            — with the real device
+    python receiver.py --sim      — with the simulator (markers are sent to the
+                                    simulator so it can "respond bodily")
 
-Клавиши (настраиваются в config.json):
-    1…9, Пробел, B   — поставить метку соответствующего типа
-    N                — начать заметку (время метки = момент нажатия N);
-                       Enter — сохранить, Esc — отменить
-    R                — старт / стоп записи
-    F                — заморозить / продолжить прокрутку графиков
+Keys (configured in config.json):
+    1…9, Space, B    — place a marker of that type
+    N                — start a note (marker time = moment N is pressed);
+                       Enter — save, Esc — cancel
+    R                — start / stop recording
+    F                — freeze / resume plot scrolling
 """
 import argparse
 import random
@@ -29,10 +29,10 @@ MARKER_COLORS = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
                  "#469990", "#800000"]
 
 
-# ---------------------------------------------------------------- без окна
+# ---------------------------------------------------------------- headless
 
 def run_headless(engine, duration, auto_every):
-    """Запись без окна; при auto_every>0 метки ставятся автоматически (для проверки)."""
+    """Recording without a window; with auto_every>0 markers are placed automatically (testing)."""
     labels = [(k, v) for k, v in engine.cfg["markers"].items() if k in "123456789"]
     d = engine.start_recording()
     print(tr("hl_recording"), d)
@@ -52,7 +52,7 @@ def run_headless(engine, duration, auto_every):
     return d
 
 
-# ---------------------------------------------------------------- окно
+# ---------------------------------------------------------------- window
 
 def run_gui(engine):
     import pyqtgraph as pg
@@ -60,7 +60,7 @@ def run_gui(engine):
     from scipy.signal import butter, sosfiltfilt
 
     sos_disp = butter(2, [0.5, 5.0], btype="band", fs=P.BASE_RATE_HZ, output="sos")
-    sos_eda = butter(2, 1.5, fs=P.SLOW_RATE_HZ, output="sos")   # только для показа
+    sos_eda = butter(2, 1.5, fs=P.SLOW_RATE_HZ, output="sos")   # display only
     eda_min_span = 0.5 if eda_is_uS(engine.cfg["eda_calibration"]) else 2.0
     cfg = engine.cfg
     key_color = {k: MARKER_COLORS[i % len(MARKER_COLORS)]
@@ -77,7 +77,7 @@ def run_gui(engine):
     win.setCentralWidget(central)
     hl = QtWidgets.QHBoxLayout(central)
 
-    # ---- графики
+    # ---- plots
     glw = pg.GraphicsLayoutWidget()
     hl.addWidget(glw, 1)
 
@@ -111,7 +111,7 @@ def run_gui(engine):
     c_ppg = p_ppg.plot(pen=pg.mkPen("#888", width=1), connect="finite")
     c_resp = p_resp.plot(pen=pg.mkPen("#2ca02c", width=2), connect="finite")
 
-    # ---- правая панель
+    # ---- side panel
     side = QtWidgets.QWidget()
     side.setFixedWidth(320)
     hl.addWidget(side)
@@ -147,7 +147,7 @@ def run_gui(engine):
     vl.addLayout(grid)
 
     note = QtWidgets.QLineEdit()
-    # только по клику: иначе поле заберёт фокус при старте и цифры уйдут в текст, а не в метки
+    # click-only focus: otherwise the field grabs focus at start and digit keys type text instead of markers
     note.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
     note.setPlaceholderText(tr("note_placeholder"))
     vl.addWidget(note)
@@ -157,7 +157,7 @@ def run_gui(engine):
     log.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
     vl.addWidget(log, 1)
 
-    # ---- метки
+    # ---- markers
     drawn = []
 
     def fmt_t(t):
@@ -176,7 +176,7 @@ def run_gui(engine):
             items.append((p, ln))
         txt = pg.TextItem(m["label"] if not m.get("note") else m["note"][:30],
                           color=color, anchor=(0, 0))
-        p_eda.addItem(txt, ignoreBounds=True)   # подписи не должны влиять на масштаб
+        p_eda.addItem(txt, ignoreBounds=True)   # labels must not affect autoscaling
         items.append((p_eda, txt))
         drawn.append((m, txt))
         text = f"{fmt_t(m['t'])}  {m['label']}"
@@ -228,7 +228,7 @@ def run_gui(engine):
     esc.activated.connect(lambda: (note.clear(), note.clearFocus(), note_t.__setitem__(0, None)))
     shortcuts.append(esc)
 
-    # ---- запись
+    # ---- recording
     def toggle_rec():
         if engine.recorder:
             d = engine.stop_recording()
@@ -248,14 +248,14 @@ def run_gui(engine):
             rec_info.setText(tr("rec_folder", path=d))
 
     rec_btn.clicked.connect(toggle_rec)
-    # в замороженном режиме можно листать графики мышью
+    # when frozen, the plots can be panned with the mouse
     freeze.toggled.connect(lambda on: [p.setMouseEnabled(x=on, y=False) for p in plots])
     for k, fn in (("R", toggle_rec), ("F", lambda: freeze.toggle())):
         sc = QtGui.QShortcut(QtGui.QKeySequence(k), win)
         sc.activated.connect(fn)
         shortcuts.append(sc)
 
-    # ---- обновление
+    # ---- refresh
     state = {"pk": 0, "pk_t": time.perf_counter(), "rate": 0.0, "st": 0.0}
     DISPLAY_DELAY = 0.25
 
@@ -297,21 +297,21 @@ def run_gui(engine):
             p_eda.setXRange(x0, x1, padding=0)
             for p in (p_hr, p_ppg, p_resp):
                 p.enableAutoRange(axis="y")
-            # шкала кожи не уже eda_min_span: иначе шум АЦП растягивается на весь экран
+            # EDA scale no narrower than eda_min_span, else ADC noise fills the whole plot
             ys = state.get("eda_y")
             if ys is not None and len(ys) and np.isfinite(ys).any():
                 lo, hi = np.nanmin(ys), np.nanmax(ys)
                 pad = max(eda_min_span - (hi - lo), 0) / 2 + 0.05 * (hi - lo)
                 p_eda.setYRange(lo - pad, hi + pad, padding=0)
 
-        # подписи меток — у верхнего края графика EDA
+        # marker labels at the top edge of the EDA plot
         (_, _), (ylo, yhi) = p_eda.viewRange()
-        # лесенкой в 3 ряда, чтобы близкие метки не налезали друг на друга
+        # staggered in 3 rows so that nearby markers do not overlap
         for i, (m, txt) in enumerate(drawn):
             if x0 - 5 < m["t"] < x1 + 1:
                 txt.setPos(m["t"], yhi - (i % 3) * 0.09 * (yhi - ylo))
 
-        # статус раз в полсекунды
+        # status every half second
         if time.perf_counter() - state["st"] > 0.5:
             dtp = time.perf_counter() - state["pk_t"]
             state["rate"] = (engine.packets - state["pk"]) / dtp
@@ -328,7 +328,7 @@ def run_gui(engine):
             hr_now = f"{engine.beats.hr[-1][1]:.0f}" if engine.beats.hr else "—"
             if not engine.sync.ready:
                 sync = "—"
-            elif len(engine.sync.buckets) < 30:     # меньше минуты — наклон ещё неточен
+            elif len(engine.sync.buckets) < 30:     # under a minute: the slope is not reliable yet
                 sync = tr("st_sync_pending", lat=engine.sync.latency_ms())
             else:
                 sync = tr("st_sync", drift=engine.sync.drift_ppm, lat=engine.sync.latency_ms())
@@ -341,7 +341,7 @@ def run_gui(engine):
                 f"<br>{finger}<br>{tr('st_hr', hr=hr_now)}<br>{sync}{rec}")
 
     def safe_refresh():
-        # ошибка в одном кадре не должна закрывать программу
+        # an error in one frame must not close the program
         try:
             refresh()
         except Exception:
@@ -376,7 +376,7 @@ def main():
     args = ap.parse_args()
 
     cfg = load_config(args.config)
-    if args.sim:      # симулятор шлёт наносименсы
+    if args.sim:      # the simulator sends nanosiemens
         cfg["eda_calibration"] = {"type": "linear", "gain": 0.001, "offset": 0.0}
     fb = (args.sim_host, P.SIM_FEEDBACK_PORT) if args.sim else None
     engine = Engine(cfg, sim_feedback=fb)

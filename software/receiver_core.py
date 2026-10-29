@@ -1,7 +1,7 @@
 """
-Ядро приёмника: приём пакетов, синхронизация часов, буферы, метки, запись сессии,
-обнаружение ударов пульса. Без графического интерфейса — его использует
-receiver.py (окно) и режим --headless (для проверки без экрана).
+Receiver core: packet reception, clock alignment, buffers, markers, session
+recording, heart-beat detection. No GUI: used by receiver.py (the window)
+and by --headless mode (testing without a screen).
 """
 import csv
 import datetime as dt
@@ -26,13 +26,13 @@ DEFAULT_CONFIG = {
     "window_s": 30,
     "language": "en",
     # "markers": {"1": "Question", ...}  — leave out to use the language's defaults
-    # Пересчёт сырого EDA.
-    #  relative: 0…100 отн. ед. от полной шкалы АЦП; invert=true — для Grove GSR,
-    #            у которого напряжение падает, когда проводимость кожи растёт
-    #  linear:   мкСм = raw * gain + offset   (симулятор шлёт нС -> gain 0.001)
-    #  table:    мкСм кусочно-линейно по точкам калибровки [[raw, мкСм], ...]
-    #  none:     сырые отсчёты
-    # При запуске с --sim всегда используется linear 0.001.
+    # Raw EDA conversion.
+    #  relative: 0…100 rel. units of the ADC full scale; invert=true for the Grove
+    #            GSR, whose output voltage falls as skin conductance rises
+    #  linear:   µS = raw * gain + offset   (the simulator sends nS -> gain 0.001)
+    #  table:    µS piecewise-linear over calibration points [[raw, µS], ...]
+    #  none:     raw counts
+    # With --sim, linear 0.001 is always used.
     "eda_calibration": {"type": "relative", "full_scale": 65520, "invert": True},
     "invert_ppg": True,
 }
@@ -72,15 +72,15 @@ def eda_units(cal):
     return tr("units_uS") if eda_is_uS(cal) else tr("units_rel")
 
 
-# ---------------------------------------------------------------- буферы
+# ---------------------------------------------------------------- buffers
 
 class Ring:
-    """Кольцевой буфер нескольких синхронных колонок."""
+    """Ring buffer of several synchronous columns."""
 
     def __init__(self, capacity, ncols):
         self.cap = capacity
         self.data = np.full((capacity, ncols), np.nan)
-        self.n = 0          # всего записано
+        self.n = 0          # total written
 
     def extend(self, rows):
         rows = np.atleast_2d(rows)
@@ -95,13 +95,13 @@ class Ring:
         return np.vstack((self.data[i:], self.data[:i]))
 
 
-# ---------------------------------------------------------------- пульс
+# ---------------------------------------------------------------- heart rate
 
 _SOS = butter(2, [0.7, 3.5], btype="band", fs=P.BASE_RATE_HZ, output="sos")
 
 
 def detect_beats(t, ppg, fs=P.BASE_RATE_HZ):
-    """Моменты пиков пульсовой волны. ppg уже с правильной полярностью (вверх = систола)."""
+    """Pulse-wave peak times. ppg must already have the right polarity (up = systole)."""
     ok = np.isfinite(ppg)
     if ok.sum() < 3 * fs:
         return np.array([])
@@ -109,7 +109,7 @@ def detect_beats(t, ppg, fs=P.BASE_RATE_HZ):
     x = sosfiltfilt(_SOS, x - np.mean(x))
     prom = 0.4 * np.std(x)
     pk, _ = find_peaks(x, distance=int(0.33 * fs), prominence=prom)
-    # уточнение вершины параболой
+    # refine the peak with a parabola
     out = []
     for p in pk:
         if 0 < p < len(x) - 1:
@@ -124,8 +124,8 @@ def detect_beats(t, ppg, fs=P.BASE_RATE_HZ):
 
 class LiveBeats:
     def __init__(self):
-        self.beats = []        # время ударов (сек приложения)
-        self.hr = []           # (t, уд/мин)
+        self.beats = []        # beat times (app seconds)
+        self.hr = []           # (t, bpm)
 
     def update(self, t, ppg, now_t):
         if len(t) < 300:
@@ -133,7 +133,7 @@ class LiveBeats:
         sel = t > now_t - 12
         bt = detect_beats(t[sel], ppg[sel])
         for b in bt:
-            if b > now_t - 1.5:           # у края окна фильтр ещё не устоялся
+            if b > now_t - 1.5:           # the filter has not settled at the window edge
                 continue
             if self.beats and b <= self.beats[-1] + 0.3:
                 continue
@@ -147,7 +147,7 @@ class LiveBeats:
             self.hr = self.hr[-1000:]
 
 
-# ---------------------------------------------------------------- запись
+# ---------------------------------------------------------------- recording
 
 class Recorder:
     def __init__(self, base_dir, cfg, app_t0_wall):
@@ -208,7 +208,7 @@ class Recorder:
             f.close()
 
 
-# ---------------------------------------------------------------- приём
+# ---------------------------------------------------------------- reception
 
 class UdpListener(threading.Thread):
     def __init__(self, port, out_q, clock):
@@ -227,11 +227,11 @@ class UdpListener(threading.Thread):
                 data, addr = self.sock.recvfrom(4096)
             except OSError:
                 return
-            # метка времени ставится сразу при приходе, до любой обработки
+            # timestamp on arrival, before any processing
             t = self.clock()
             self.q.put((t, data, addr))
-            # отвечаем устройству «IDHI», чтобы оно узнало адрес компьютера
-            # и перешло с рассылки всем на отправку только сюда
+            # reply "IDHI" so the device learns the computer's address
+            # and switches from broadcast to sending only here
             last = self.hello.get(addr)
             if last is None or t - last > 2.0:
                 self.hello[addr] = t
@@ -242,7 +242,7 @@ class UdpListener(threading.Thread):
 
 
 class Engine:
-    """Всё, кроме окна. Вызывайте poll() регулярно (в окне — по таймеру)."""
+    """Everything except the window. Call poll() regularly (in the GUI, from a timer)."""
 
     def __init__(self, cfg, sim_feedback=None):
         self.cfg = cfg
@@ -254,7 +254,7 @@ class Engine:
         self.sync = ClockSync()
         cap_fast = P.BASE_RATE_HZ * 180
         cap_slow = P.SLOW_RATE_HZ * 180
-        self.fast = Ring(cap_fast, 3)    # t, ppg_ir (для показа), ppg_red
+        self.fast = Ring(cap_fast, 3)    # t, ppg_ir (for display), ppg_red
         self.slow = Ring(cap_slow, 3)    # t, eda_uS, resp
         self.beats = LiveBeats()
         self.markers = []
@@ -269,13 +269,13 @@ class Engine:
         self.last_flags = 0
         self.peer = None
         self._beat_tick = 0.0
-        self.sim_feedback = sim_feedback   # (host, port) или None
+        self.sim_feedback = sim_feedback   # (host, port) or None
         self._fb_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) if sim_feedback else None
 
     def now(self):
         return time.perf_counter() - self.app_t0
 
-    # --- данные
+    # --- data
     def poll(self):
         n = 0
         while True:
@@ -300,18 +300,18 @@ class Engine:
         return n
 
     def _handle(self, pkt, arrival):
-        # перезапуск устройства: часы ушли назад
+        # device restart: its clock went backwards
         if self.last_t_end is not None and pkt.t0_us < self.last_t_end - 1_000_000:
             self.sync.reset()
             self.last_seq = None
             self.resets += 1
         if self.last_seq is not None:
             gap = (pkt.seq - self.last_seq) & 0xFFFFFFFF
-            if gap == 0 or gap > 0x7FFFFFFF:      # дубль или опоздавший пакет
+            if gap == 0 or gap > 0x7FFFFFFF:      # duplicate or late packet
                 return
             if gap > 1:
                 self.lost += gap - 1
-                # разрыв на графике
+                # gap in the plot
                 self.fast.extend([[np.nan] * 3])
                 self.slow.extend([[np.nan] * 3])
         self.last_seq = pkt.seq
@@ -330,7 +330,7 @@ class Engine:
         if self.recorder:
             self.recorder.packet(pkt, arrival, tf, ts, eda)
 
-    # --- метки
+    # --- markers
     def add_marker(self, key, label, note="", t=None):
         m = {"t": self.now() if t is None else t, "key": key, "label": label, "note": note}
         self.markers.append(m)
@@ -343,7 +343,7 @@ class Engine:
                 pass
         return m
 
-    # --- запись
+    # --- recording
     def start_recording(self):
         if self.recorder:
             return self.recorder.dir
@@ -360,7 +360,7 @@ class Engine:
         self.recorder = None
         return d
 
-    # --- состояние
+    # --- status
     def stats(self):
         return {
             "packets": self.packets,

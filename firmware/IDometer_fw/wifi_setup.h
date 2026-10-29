@@ -1,14 +1,14 @@
 // =====================================================================
-//  IDometer — Wi-Fi без перекомпиляции
+//  IDometer — Wi-Fi without recompiling
 //
-//  * Прибор помнит до 5 сетей (во встроенной памяти, переживает выключение)
-//    и сам подключается к той, что рядом.
-//  * Режим настройки: прибор поднимает свою сеть «IDometer-setup».
-//    Подключитесь к ней телефоном — откроется страница выбора сети
-//    (если не открылась сама, наберите в браузере 192.168.4.1).
-//    Включается сам, если 30 с нет связи, или если держать правую кнопку
-//    при включении прибора.
-//  * Монитор порта (115200): команды wifi, list, forget N, setup, status, help.
+//  * The device remembers up to 5 networks (in flash, survives power-off)
+//    and joins whichever one is in range.
+//  * Setup mode: the device starts its own network "IDometer-setup".
+//    Join it from a phone and the network selection page opens
+//    (if it does not open by itself, browse to 192.168.4.1).
+//    Starts by itself after 30 s without a connection, or when the right
+//    button is held at power-on.
+//  * Serial monitor (115200): commands wifi, list, forget N, setup, status, help.
 // =====================================================================
 #pragma once
 #include <WiFi.h>
@@ -37,7 +37,7 @@ static bool        tryNow = false;
 static String      scanList[20];
 static int         scanCount = 0;
 
-// ---------------------------------------------------------------- память
+// ---------------------------------------------------------------- storage
 static void netsLoad() {
   prefs.begin("wifi", true);
   netCount = min((int)prefs.getUChar("n", 0), MAX_NETS);
@@ -67,7 +67,7 @@ static void netsForget(int idx) {
   netsSave();
 }
 
-// новая (или изменённая) сеть встаёт первой; самая старая вытесняется
+// a new (or changed) network goes first; the oldest one is dropped
 static void netsAdd(const String& ssid, const String& pass) {
   if (!ssid.length()) return;
   for (int i = 0; i < netCount; i++)
@@ -79,7 +79,7 @@ static void netsAdd(const String& ssid, const String& pass) {
   tryNow = true;
 }
 
-// ---------------------------------------------------------------- страница
+// ---------------------------------------------------------------- web page
 static String esc(const String& s) {
   String o;
   for (char c : s) {
@@ -166,7 +166,7 @@ static void apStart() {
   web.on("/save", HTTP_POST, pageSave);
   web.on("/scan", HTTP_GET, [] { doScan(); redirectRoot(); });
   web.on("/forget", HTTP_GET, [] { netsForget(web.arg("i").toInt()); redirectRoot(); });
-  web.onNotFound(redirectRoot);     // любой адрес ведёт на страницу настройки
+  web.onNotFound(redirectRoot);     // any address leads to the setup page
   web.begin();
   stApOn = true;
   Serial.println("Setup mode: join Wi-Fi \"" AP_NAME "\", open 192.168.4.1");
@@ -182,7 +182,7 @@ static void apStop() {
   Serial.println("Setup mode off");
 }
 
-// ---------------------------------------------------------------- монитор порта
+// ---------------------------------------------------------------- serial monitor
 static void printNets() {
   Serial.printf("Saved networks: %d\n", netCount);
   for (int i = 0; i < netCount; i++) Serial.printf("  %d: %s\n", i + 1, nets[i].ssid.c_str());
@@ -199,12 +199,12 @@ static void printHelp() {
     "  help      - this help");
 }
 
-void printStatus();   // в основном файле
+void printStatus();   // defined in the main file
 
 static void serialPoll() {
   static String buf;
   static uint32_t lastChar = 0;
-  static int step = 0;          // 0 — команда, 1 — ждём имя сети, 2 — ждём пароль
+  static int step = 0;          // 0: command, 1: waiting for SSID, 2: waiting for password
   static String newSsid;
 
   bool lineDone = false;
@@ -214,7 +214,7 @@ static void serialPoll() {
     if (c == '\r' || c == '\n') { if (buf.length()) { lineDone = true; break; } }
     else buf += c;
   }
-  // монитор порта без перевода строки: строка закончилась, если 1 с тишины
+  // serial monitor without line endings: a line ends after 1 s of silence
   if (!lineDone && buf.length() && millis() - lastChar > 1000) lineDone = true;
   if (!lineDone) return;
 
@@ -246,14 +246,14 @@ static void serialPoll() {
   else printHelp();
 }
 
-// ---------------------------------------------------------------- задача Wi-Fi
+// ---------------------------------------------------------------- Wi-Fi task
 void wifiTask(void*) {
   netsLoad();
   String def = WIFI_SSID;
   if (netCount == 0 && def.length() && def != "your_network") netsAdd(def, WIFI_PASSWORD);
 
   WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false);         // энергосбережение Wi-Fi даёт задержки до сотен мс
+  WiFi.setSleep(false);         // Wi-Fi power saving adds delays of hundreds of ms
   if (netCount == 0 || forceApAtBoot) apStart();
 
   uint32_t lostSince = millis(), lastTry = 0, apIdleSince = millis();
@@ -267,7 +267,7 @@ void wifiTask(void*) {
     if (WiFi.status() == WL_CONNECTED) {
       lostSince = millis();
       strlcpy(stSsid, WiFi.SSID().c_str(), sizeof stSsid);
-      // связь есть и никто не настраивает — режим настройки больше не нужен
+      // connected and nobody is configuring: setup mode is no longer needed
       if (stApOn) {
         if (WiFi.softAPgetStationNum() > 0) apIdleSince = millis();
         else if (millis() - apIdleSince > 60000) apStop();
@@ -275,11 +275,11 @@ void wifiTask(void*) {
     } else {
       stSsid[0] = 0;
       if (!stApOn && millis() - lostSince > 30000) { apStart(); apIdleSince = millis(); }
-      // пока телефон подключён к настройке, сеть не ищем: поиск сбивает ему связь
+      // while a phone is on the setup network, do not scan: scanning disrupts its link
       bool apBusy = stApOn && WiFi.softAPgetStationNum() > 0;
       uint32_t period = stApOn ? 15000 : 3000;
       if (netCount && (tryNow || (!apBusy && millis() - lastTry > period))) {
-        if (tryNow) delay(1500);     // дать странице «Сохранено» дойти до телефона
+        if (tryNow) delay(1500);     // let the "Saved" page reach the phone first
         tryNow = false;
         if (multiDirty || !multi) {
           delete multi;

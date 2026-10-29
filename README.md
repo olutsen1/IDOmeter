@@ -19,9 +19,9 @@ see what the body does in the following seconds.
 | `hardware/` | wiring diagram and connection table of the prototype board |
 | `legacy/` | the original 2023–2025 prototype firmware (MQTT + Raspberry Pi + Grafana) |
 
-The interface is in English; Russian is included and other languages can be
-added as a single text file in `software/lang/` (see `software/README.md`).
-Some documentation (`*_ru`) and code comments are still in Russian.
+The interface is in English and Ukrainian; another language is one more text
+file in `software/lang/` (see `software/README.md`). User guides are in English
+and Ukrainian (`*_uk`).
 
 ## Hardware (prototype board IDometer V1.0)
 
@@ -57,7 +57,7 @@ Some documentation (`*_ru`) and code comments are still in Russian.
    to markers like a body would.
 4. `python analyze.py sessions\<folder> --truth sim_truth.csv`
 
-User guide: `software/README.md`. Firmware flashing: `firmware/HOW_TO_FLASH.md`.
+User guide: `software/README.md` (Ukrainian: `README_uk.md`). Firmware flashing: `firmware/HOW_TO_FLASH.md` (`HOW_TO_FLASH_uk.md`).
 
 ## Protocol v1
 

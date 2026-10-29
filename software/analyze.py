@@ -1,23 +1,23 @@
 """
-IDometer — анализ сессии после записи.
+IDometer post-session analysis.
 
     python analyze.py sessions\\2026-10-28_17-40-00
-    python analyze.py sessions\\...  --truth sim_truth.csv     (проверка на симуляторе)
+    python analyze.py sessions\\...  --truth sim_truth.csv     (simulator check)
 
-Что делает:
-  1. Заново и точнее сводит часы устройства и компьютера по всей сессии.
-  2. Находит удары пульса по сырому PPG и строит мгновенный пульс.
-  3. Для каждой метки вырезает окно −3…+12 с и измеряет:
-       * SCR — фазический ответ кожи: амплитуда «впадина → пик», латентность;
-       * пульс — замедление (0,5–3 с) и ускорение (3–8 с) относительно 3 с до метки.
-  4. Рисует:
-       overview.png   — вся сессия с метками;
-       responses.png  — наложенные отклики по типам меток (тонкие линии — отдельные
-                        события, толстая — среднее).
-  5. Пишет responses.csv — таблица по каждой метке.
+What it does:
+  1. Re-aligns device and computer clocks over the whole session, more precisely.
+  2. Detects heart beats in the raw PPG and builds instantaneous heart rate.
+  3. Cuts a −3…+12 s window around each marker and measures:
+       * SCR, the phasic skin response: "trough → peak" amplitude and latency;
+       * heart rate: dip (0.5–3 s) and rise (3–8 s) relative to 3 s before the marker.
+  4. Plots:
+       overview.png   — the whole session with markers;
+       responses.png  — responses overlaid by marker type (thin lines = single
+                        events, thick = mean).
+  5. Writes responses.csv, a table with one row per marker.
 
-С --truth сравнивает найденное с тем, что заложил симулятор, и печатает
-точность синхронизации часов, чувствительность и ошибку амплитуды.
+With --truth it compares the findings with what the simulator planted and prints
+clock-alignment accuracy, sensitivity and amplitude error.
 """
 import argparse
 import csv
@@ -32,7 +32,7 @@ from i18n import tr
 from clocksync import fit_global
 from receiver_core import detect_beats
 
-SCR_MIN_US = 0.05          # порог «ответ есть», мкСм (типично 0,01–0,05)
+SCR_MIN_US = 0.05          # "response present" threshold, µS (typically 0.01–0.05)
 EDA_WIN = (-3.0, 12.0)
 HR_WIN = (-5.0, 12.0)
 
@@ -52,13 +52,13 @@ def load_session(d):
 
 
 def scr_measure(t_rel, eda, thr=SCR_MIN_US):
-    """Впадина в 0,5–4 с, затем пик не позже 4 с после неё. Возвращает (амплитуда, латентность)."""
+    """Trough in 0.5–4 s, then a peak no later than 4 s after it. Returns (amplitude, latency)."""
     a = (t_rel >= 0.5) & (t_rel <= 4.0)
     if a.sum() < 3:
         return 0.0, np.nan
     ia = np.where(a)[0]
     i0 = ia[np.argmin(eda[ia])]
-    # подъём SCR занимает 0,5–4 с; ограничение отсекает медленный дрейф тонического уровня
+    # an SCR rises within 0.5–4 s; the limit rejects slow drift of the tonic level
     b = (t_rel > t_rel[i0]) & (t_rel <= min(t_rel[i0] + 4.0, 8.0))
     if b.sum() < 2:
         return 0.0, np.nan
@@ -67,14 +67,14 @@ def scr_measure(t_rel, eda, thr=SCR_MIN_US):
     amp = eda[i1] - eda[i0]
     if amp < thr:
         return amp, np.nan
-    # начало ответа: последний момент перед пиком, когда подъём ещё < 10 % амплитуды
+    # response onset: the last moment before the peak where the rise is still < 10 % of the amplitude
     seg = eda[i0:i1 + 1] - eda[i0]
     k = np.where(seg < 0.1 * amp)[0][-1]
     return amp, t_rel[i0 + k]
 
 
 def lowpass_eda(x, fs=P.SLOW_RATE_HZ, fc=1.0):
-    """Сглаживание 1 Гц: убирает шум АЦП, но не трогает форму SCR (подъём ~1 с)."""
+    """1 Hz low-pass: removes ADC noise but keeps the SCR shape (rise ~1 s)."""
     from scipy.signal import butter, sosfiltfilt
     ok = np.isfinite(x)
     y = np.interp(np.arange(len(x)), np.where(ok)[0], x[ok])
@@ -94,7 +94,7 @@ def main():
     out = os.path.join(args.session, "analysis")
     os.makedirs(out, exist_ok=True)
 
-    # 1. часы
+    # 1. clocks
     to_host = fit_global(pk[:, 1], pk[:, 2])
     if np.any(np.diff(fast[:, 1]) < 0):
         print(tr("an_clock_back"))
@@ -108,7 +108,7 @@ def main():
     eda = lowpass_eda(eda_raw)
     from receiver_core import eda_is_uS, eda_units
     units = eda_units(meta["config"].get("eda_calibration", {}))
-    # порог «ответ есть»: не меньше 5 шумов датчика (и не меньше 0,03 мкСм)
+    # "response present" threshold: at least 5x the sensor noise (and at least 0.03 µS)
     resid = eda_raw - eda
     noise = 1.4826 * np.median(np.abs(resid - np.median(resid)))
     thr = max(5 * noise, 0.03 if eda_is_uS(meta["config"].get("eda_calibration", {})) else 0.0)
@@ -118,7 +118,7 @@ def main():
     print(tr("an_summary", dur=ts[-1] - ts[0], got=len(pk), exp=exp_pk, lost=exp_pk - len(pk),
              drift=getattr(to_host, "drift_ppm", 0)))
 
-    # 2. пульс
+    # 2. heart rate
     sign = -1 if meta["config"].get("invert_ppg", True) else 1
     beats = detect_beats(tf, sign * fast[:, 3].astype(float))
     ibi = np.diff(beats)
@@ -131,7 +131,7 @@ def main():
     def hr_at(t):
         return np.interp(t, hr_t, hr_v, left=np.nan, right=np.nan)
 
-    # 3. окна вокруг меток
+    # 3. windows around markers
     eg = np.arange(EDA_WIN[0], EDA_WIN[1] + 1e-9, 1 / P.SLOW_RATE_HZ)
     hg = np.arange(HR_WIN[0], HR_WIN[1] + 1e-9, 0.25)
     rows, per_label = [], {}
@@ -164,8 +164,8 @@ def main():
                      "hr_change_3-8s": round(float(acc), 1)})
         per_label.setdefault(m["label"], []).append((e_rel, h_rel))
 
-    # Случайный уровень: те же измерения в моментах, далёких от всех меток.
-    # Показывает, как часто «ответ» находится просто так (спонтанные SCR, шум).
+    # Chance level: the same measurement at moments far from all markers.
+    # Shows how often a "response" appears by itself (spontaneous SCRs, noise).
     mt_all = np.array([m["t"] for m in markers]) if markers else np.array([])
     cand = np.arange(ts[0] + 5, ts[-1] - 13, 0.5)
     if len(mt_all):
@@ -196,11 +196,11 @@ def main():
     else:
         print(tr("an_chance_none"))
 
-    # 4. сверка с симулятором
+    # 4. check against the simulator
     if args.truth:
         check_truth(args.truth, to_host, markers, rows, beats)
 
-    # 5. графики
+    # 5. plots
     if not args.no_plots:
         plot_all(out, ts, eda, resp, hr_t, hr_v, markers, per_label, eg, hg, units)
         print(tr("an_outputs", path=out))

@@ -1,7 +1,7 @@
 """
 Interface language.
 
-All user-visible text lives in lang/<code>.json (en, ru, ...). The language is
+All user-visible text lives in lang/<code>.json (en, uk, ...). The language is
 chosen by "language" in config.json. A missing string falls back to English.
 To add a translation, copy lang/en.json to lang/<code>.json, translate the
 values (keep the {placeholders}), and set "language": "<code>" in config.json.
