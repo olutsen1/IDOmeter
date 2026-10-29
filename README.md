@@ -41,6 +41,8 @@ and Ukrainian (`*_uk`).
   (≈3 ms in simulator tests, even with Wi-Fi jitter and packet loss).
 - **No processing on the device.** Raw PPG and EDA are sent; heart beats,
   heart rate and skin conductance responses (SCR) are computed on the computer.
+- **Breathing from the pulse wave** when there is no breathing sensor: the
+  breathing rhythm is extracted from the PPG baseline (`software/breathing.py`).
 - **Wi-Fi setup without recompiling:** the device remembers up to 5 networks;
   hold the right button at power-on (or wait 30 s without a known network)
   and connect a phone to `IDometer-setup`.

@@ -35,6 +35,9 @@ DEFAULT_CONFIG = {
     # With --sim, linear 0.001 is always used.
     "eda_calibration": {"type": "relative", "full_scale": 65520, "invert": True},
     "invert_ppg": True,
+    # Breathing curve: "sensor" = the device's breathing channel, "ppg" = estimated
+    # from the pulse wave (breathing.py), "auto" = sensor if it sends data, else ppg.
+    "breathing_source": "auto",
 }
 
 

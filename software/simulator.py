@@ -61,6 +61,7 @@ class Body:
         self.resp_phase = 0.0
         self.resp_rate = 14.0
         self.hr_noise = 0.0
+        self.ppg_drift = 0.0            # slow baseline wander of the finger PPG
         self.beats = []
         self.next_beat = None
         self.new_beats = []             # for the log
@@ -118,6 +119,7 @@ class Body:
         self.resp_phase += 2 * math.pi * self.resp_rate / 60.0 * dt
         # slow heart-rate noise
         self.hr_noise += -self.hr_noise * dt / 20 + self.rng.gauss(0, 0.6) * math.sqrt(max(dt, 0))
+        self.ppg_drift += -self.ppg_drift * dt / 30 + self.rng.gauss(0, 60) * math.sqrt(max(dt, 0))
         # beats
         if self.next_beat is None:
             self.next_beat = t
@@ -128,8 +130,12 @@ class Body:
         self.beats = [b for b in self.beats if t - b < 1.2]
         pulse = sum(self._pulse(t - b) for b in self.beats)
         resp = self._resp_amp(t) * math.sin(self.resp_phase)
-        ir = 120000 + 400 * resp - 1300 * pulse + self.rng.gauss(0, 25)
-        red = 95000 + 300 * resp - 900 * pulse + self.rng.gauss(0, 25)
+        # A real finger PPG: a weak breathing baseline (RIIV), pulse amplitude
+        # modulated by breathing, ~0.1 Hz vasomotor (Mayer) waves and slow drift.
+        mayer = 150 * math.sin(2 * math.pi * 0.1 * t)
+        amp = 1 + 0.08 * resp
+        ir = 120000 + self.ppg_drift + mayer + 150 * resp - 1300 * amp * pulse + self.rng.gauss(0, 25)
+        red = 95000 + 0.7 * (self.ppg_drift + mayer) + 110 * resp - 900 * amp * pulse + self.rng.gauss(0, 25)
 
         eda = resp_out = None
         if slow:

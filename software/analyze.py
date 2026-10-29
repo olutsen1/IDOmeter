@@ -27,6 +27,7 @@ import sys
 
 import numpy as np
 
+import breathing as BR
 import protocol as P
 from i18n import tr
 from clocksync import fit_global
@@ -128,6 +129,32 @@ def main():
     print(tr("an_noise", noise=noise, thr=thr, units=units))
     print(tr("an_beats", n=len(beats), hr=np.median(hr_v)))
 
+    # breathing: the device's sensor channel, or estimated from the PPG when there is none
+    tb, yb = BR.from_ppg(tf, fast[:, 3].astype(float))
+    has_sensor = bool(np.nanmax(np.abs(resp)) > 0)
+    src = meta["config"].get("breathing_source", "auto")
+    use_ppg = src == "ppg" or (src == "auto" and not has_sensor)
+    if use_ppg and len(tb):
+        resp_t, resp_y, resp_label = tb, yb, tr("an_y_resp_ppg")
+    else:
+        resp_t, resp_y, resp_label = ts, resp, tr("an_y_resp")
+    if len(tb):
+        # median of 60 s windows, keeping only windows with a clear rhythm
+        rates = []
+        for i in range(0, len(yb) - 600 + 1, 300):
+            r_, q_ = BR.rate(yb[i:i + 600])
+            if q_ >= 0.3:
+                rates.append(r_)
+        if rates:
+            print(tr("an_breath_ppg", br=np.median(rates), n=len(rates)))
+        if has_sensor:
+            from scipy.signal import sosfiltfilt
+            ref = np.interp(tb, ts, resp)
+            ref = sosfiltfilt(BR._SOS, ref - ref.mean())
+            k = slice(100, -100)
+            print(tr("an_breath_check", r=np.corrcoef(yb[k], ref[k])[0, 1],
+                     a=BR.rate(yb)[0], b=BR.rate(ref)[0]))
+
     def hr_at(t):
         return np.interp(t, hr_t, hr_v, left=np.nan, right=np.nan)
 
@@ -202,7 +229,7 @@ def main():
 
     # 5. plots
     if not args.no_plots:
-        plot_all(out, ts, eda, resp, hr_t, hr_v, markers, per_label, eg, hg, units)
+        plot_all(out, ts, eda, resp_t, resp_y, resp_label, hr_t, hr_v, markers, per_label, eg, hg, units)
         print(tr("an_outputs", path=out))
 
 
@@ -254,7 +281,7 @@ def check_truth(path, to_host, markers, rows, beats):
         print(tr("an_truth_beats", planted=len(tb), found=len(beats), sd=1000 * np.std(d[good])))
 
 
-def plot_all(out, ts, eda, resp, hr_t, hr_v, markers, per_label, eg, hg, units):
+def plot_all(out, ts, eda, resp_t, resp_y, resp_label, hr_t, hr_v, markers, per_label, eg, hg, units):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -270,8 +297,8 @@ def plot_all(out, ts, eda, resp, hr_t, hr_v, markers, per_label, eg, hg, units):
     ax[0].set_ylabel(tr("an_y_eda", units=units))
     ax[1].plot((hr_t - t0) / 60, hr_v, lw=0.8, color="#d62728")
     ax[1].set_ylabel(tr("an_y_hr"))
-    ax[2].plot((ts - t0) / 60, resp, lw=0.6, color="#2ca02c")
-    ax[2].set_ylabel(tr("an_y_resp"))
+    ax[2].plot((resp_t - t0) / 60, resp_y, lw=0.6, color="#2ca02c")
+    ax[2].set_ylabel(resp_label)
     ax[2].set_xlabel(tr("an_x_min"))
     seen = set()
     for m in markers:

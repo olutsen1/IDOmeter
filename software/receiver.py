@@ -20,6 +20,7 @@ import time
 
 import numpy as np
 
+import breathing as BR
 import protocol as P
 from i18n import tr
 from receiver_core import Engine, eda_is_uS, eda_units, load_config
@@ -277,7 +278,17 @@ def run_gui(engine):
                 ye[~ok] = np.nan
             c_eda.setData(te, ye)
             state["eda_y"] = ye
-            c_resp.setData(s[sel, 0], s[sel, 2])
+            resp = s[sel, 2]
+            src = cfg.get("breathing_source", "auto")
+            has_sensor = bool(np.nanmax(np.abs(resp)) > 0) if np.isfinite(resp).any() else False
+            use_ppg = src == "ppg" or (src == "auto" and not has_sensor)
+            if not use_ppg:
+                c_resp.setData(s[sel, 0], resp)
+            if use_ppg != state.get("resp_ppg"):
+                state["resp_ppg"] = use_ppg
+                p_resp.setLabel("left", tr("plot_resp_ppg") if use_ppg else tr("plot_resp"))
+                if use_ppg:
+                    c_resp.setData([], [])
         f = engine.fast.tail()
         if len(f) > 50:
             sel = f[:, 0] > x0 - 2
@@ -288,6 +299,15 @@ def run_gui(engine):
                 yy = sosfiltfilt(sos_disp, yy - yy.mean())
                 yy[~ok] = np.nan
                 c_ppg.setData(t, yy)
+        # breathing from the pulse wave: recomputed twice a second over the last 90 s
+        if state.get("resp_ppg") and len(f) > 50 and time.perf_counter() - state.get("br_calc", 0) > 0.5:
+            state["br_calc"] = time.perf_counter()
+            sel = f[:, 0] > now - 90
+            sign = -1 if cfg.get("invert_ppg", True) else 1
+            tb, yb = BR.from_ppg(f[sel, 0], sign * f[sel, 1])
+            if len(tb):
+                c_resp.setData(tb, yb)
+                state["br_rate"] = BR.rate(yb[-300:])
         if engine.beats.hr:
             hr = np.array(engine.beats.hr)
             sel = hr[:, 0] > x0 - 5
@@ -336,9 +356,12 @@ def run_gui(engine):
             if engine.recorder:
                 el = now - engine.recorder.meta["record_start_t"]
                 rec = f"<br><b style='color:#c62828'>{tr('st_recording', mm=int(el // 60), ss=int(el % 60))}</b>"
+            br, q = state.get("br_rate", (float("nan"), 0.0))
+            br_now = f"{br:.0f}" if np.isfinite(br) and q >= 0.3 else "—"
+            breath = f"<br>{tr('st_breath', br=br_now)}" if state.get("resp_ppg") else ""
             status.setText(
                 f"{conn}<br>{tr('st_rate', rate=state['rate'], lost=engine.lost)}"
-                f"<br>{finger}<br>{tr('st_hr', hr=hr_now)}<br>{sync}{rec}")
+                f"<br>{finger}<br>{tr('st_hr', hr=hr_now)}{breath}<br>{sync}{rec}")
 
     def safe_refresh():
         # an error in one frame must not close the program

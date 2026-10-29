@@ -60,6 +60,19 @@ Custom marker names: add to `config.json`
 `"markers": {"1": "Question", "2": "Reflection", ...}`. Without it, the
 selected language's defaults are used.
 
+## Breathing without a sensor
+
+If the device sends no breathing channel (the current board has none), the
+Breathing plot shows breathing **estimated from the pulse wave** (labelled
+"from PPG") and the status panel shows the breathing rate. Each breath shifts
+the finger PPG baseline; `breathing.py` extracts that rhythm (8–36 breaths per
+minute). It shows rhythm, pauses and deep breaths, not breathing volume, and
+whether inhalation goes up or down depends on the person.
+
+`"breathing_source"` in `config.json`: `"auto"` (default: sensor if present,
+otherwise PPG), `"sensor"` or `"ppg"`. The analysis reports the breathing rate
+from PPG and, when a sensor is present, how well the two agree.
+
 ## EDA calibration
 
 In `config.json`, `eda_calibration`:
