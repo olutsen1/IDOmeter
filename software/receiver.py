@@ -304,10 +304,11 @@ def run_gui(engine):
             state["br_calc"] = time.perf_counter()
             sel = f[:, 0] > now - 90
             sign = -1 if cfg.get("invert_ppg", True) else 1
-            tb, yb = BR.from_ppg(f[sel, 0], sign * f[sel, 1])
+            tb, mods = BR.modulations(f[sel, 0], sign * f[sel, 1], engine.beats.beats)
             if len(tb):
-                c_resp.setData(tb, yb)
-                state["br_rate"] = BR.rate(yb[-300:])
+                c_resp.setData(tb, mods["riiv"])
+                last = tb > tb[-1] - 60
+                state["br_rate"] = BR.rate_fused({k: v[last] for k, v in mods.items()})
         if engine.beats.hr:
             hr = np.array(engine.beats.hr)
             sel = hr[:, 0] > x0 - 5
@@ -358,7 +359,7 @@ def run_gui(engine):
                 el = now - engine.recorder.meta["record_start_t"]
                 rec = f"<br><b style='color:#c62828'>{tr('st_recording', mm=int(el // 60), ss=int(el % 60))}</b>"
             br, q = state.get("br_rate", (float("nan"), 0.0))
-            br_now = f"{br:.0f}" if np.isfinite(br) and q >= 0.3 else "—"
+            br_now = f"{br:.0f}" if np.isfinite(br) and q >= 0.6 else "—"
             breath = f"<br>{tr('st_breath', br=br_now)}" if state.get("resp_ppg") else ""
             status.setText(
                 f"{conn}<br>{tr('st_rate', rate=state['rate'], lost=engine.lost)}"
