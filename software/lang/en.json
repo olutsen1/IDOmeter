@@ -1,6 +1,5 @@
 {
   "_language_name": "English",
-
   "markers": {
     "1": "Question",
     "2": "Reflection",
@@ -16,18 +15,16 @@
   },
   "marker_note": "Note",
   "key_space": "Space",
-
   "units_uS": "µS",
   "units_rel": "rel. units",
   "units_bpm": "bpm",
   "units_s": "s",
-
   "plot_eda": "Skin conductance",
   "plot_hr": "Heart rate",
   "plot_ppg": "PPG",
   "plot_resp": "Breathing",
+  "plot_resp_ppg": "Breathing (from PPG)",
   "plot_time": "time",
-
   "btn_rec_start": "● Start recording  (R)",
   "btn_rec_stop": "■ Stop recording  (R)",
   "window_s": "Window, s:",
@@ -39,7 +36,6 @@
   "log_rec_stopped": "——— recording stopped ———",
   "rec_saved": "Saved: {path}",
   "rec_folder": "Folder: {path}",
-
   "st_connected": "● connected",
   "st_lost": "● connection lost",
   "st_waiting": "● waiting for data on port {port}",
@@ -47,14 +43,13 @@
   "st_no_finger": "no finger on sensor",
   "st_rate": "{rate:.1f} packets/s, lost {lost}",
   "st_hr": "heart rate {hr} bpm",
+  "st_breath": "breathing {br} /min",
   "st_sync_pending": "aligning clocks…, delay {lat:.0f} ms",
   "st_sync": "clock drift {drift:+.0f} ppm, delay {lat:.0f} ms",
   "st_recording": "RECORDING {mm:02d}:{ss:02d}",
-
   "hl_recording": "Recording:",
   "hl_stats": "Stats:",
   "hl_markers": "markers:",
-
   "an_clock_back": "Warning: the device clock went backwards (restart?) — time alignment may be inaccurate.",
   "an_session": "Session: {path}",
   "an_summary": "  duration {dur:.0f} s, packets {got} of {exp} (lost {lost}), device clock drift {drift:+.1f} ppm",
@@ -73,13 +68,15 @@
   "an_y_eda": "EDA, {units}",
   "an_y_hr": "Heart rate, bpm",
   "an_y_resp": "Breathing",
+  "an_y_resp_ppg": "Breathing\n(from PPG)",
+  "an_breath_ppg": "  breathing rate from PPG: median {br:.0f} /min ({n} windows of 60 s with a clear rhythm)",
+  "an_breath_check": "  breathing from PPG vs breathing sensor: correlation {r:.2f}, rate {a:.0f} vs {b:.0f} /min",
   "an_x_min": "minutes",
   "an_y_delta_eda": "{label}\n(n={n})\nΔ {units}",
   "an_y_delta_hr": "Δ bpm",
   "an_title_eda": "Skin conductance relative to 2 s before the marker",
   "an_title_hr": "Heart rate relative to 3 s before the marker",
   "an_x_from_marker": "seconds from marker",
-
   "sim_start": "Simulator: data -> {host}:{port}, markers <- :{fb}",
   "sim_params": "Drift {drift} ppm, loss {loss:.1%}, log: {truth}",
   "sim_stop_hint": "Ctrl+C — stop.",
