@@ -49,7 +49,7 @@ class Body:
     TAU_RISE = 0.75
     TAU_DECAY = 2.5
 
-    def __init__(self, rng: random.Random, spont_per_min=2.0):
+    def __init__(self, rng: random.Random, spont_per_min=2.0, motion_per_min=0.0):
         self.rng = rng
         self.spont_rate = spont_per_min / 60.0
         self._norm = _bateman_peak(self.TAU_RISE, self.TAU_DECAY)
@@ -58,6 +58,8 @@ class Body:
         self.scrs = []                  # (onset_s, amp_uS)
         self.hr_events = []             # onset_s
         self.sighs = []                 # onset_s
+        self.motion_rate = motion_per_min / 60.0
+        self.motion = []                # (onset_s, duration_s, amplitude, frequency_hz)
         self.resp_phase = 0.0
         self.resp_rate = 14.0
         self.hr_noise = 0.0
@@ -111,7 +113,24 @@ class Body:
                 + 0.35 * math.exp(-0.5 * ((x - 0.42) / 0.07) ** 2))
 
     # --- 10 ms step
-    def step(self, t, slow: bool, spont_cb=None):
+    def _motion(self, t):
+        """Finger movement: a burst much larger than the pulse, plus a baseline push."""
+        m = 0.0
+        for on, dur, a, f in self.motion:
+            x = t - on
+            if 0 <= x <= dur:
+                env = math.sin(math.pi * x / dur)
+                m += a * env * (math.sin(2 * math.pi * f * x) + 0.5)
+        return m
+
+    def _vasoconstriction(self, t):
+        """After a deep breath the finger pulse shrinks to ~45 % for several seconds."""
+        v = 0.0
+        for on in self.sighs:
+            v += 0.55 * math.exp(-0.5 * ((t - on - 6.0) / 2.5) ** 2)
+        return max(0.3, 1.0 - v)
+
+    def step(self, t, slow: bool, spont_cb=None, motion_cb=None):
         dt = 0.0 if self.t_last is None else t - self.t_last
         self.t_last = t
         # breathing
@@ -133,9 +152,18 @@ class Body:
         # A real finger PPG: a weak breathing baseline (RIIV), pulse amplitude
         # modulated by breathing, ~0.1 Hz vasomotor (Mayer) waves and slow drift.
         mayer = 150 * math.sin(2 * math.pi * 0.1 * t)
-        amp = 1 + 0.08 * resp
-        ir = 120000 + self.ppg_drift + mayer + 150 * resp - 1300 * amp * pulse + self.rng.gauss(0, 25)
-        red = 95000 + 0.7 * (self.ppg_drift + mayer) + 110 * resp - 900 * amp * pulse + self.rng.gauss(0, 25)
+        amp = (1 + 0.08 * resp) * self._vasoconstriction(t)
+        if self.motion_rate and self.rng.random() < self.motion_rate * dt:
+            dur = self.rng.uniform(0.5, 2.0)
+            self.motion.append((t, dur, self.rng.uniform(4000, 12000) * self.rng.choice((-1, 1)),
+                                self.rng.uniform(0.7, 3.0)))
+            if motion_cb:
+                motion_cb(t, t + dur)
+        self.motion = [mv for mv in self.motion if t - mv[0] < mv[1] + 0.1]
+        mot = self._motion(t)
+        ir = 120000 + self.ppg_drift + mayer + mot + 150 * resp - 1300 * amp * pulse + self.rng.gauss(0, 25)
+        red = (95000 + 0.7 * (self.ppg_drift + mayer + mot) + 110 * resp - 900 * amp * pulse
+               + self.rng.gauss(0, 25))
 
         eda = resp_out = None
         if slow:
@@ -228,12 +256,14 @@ def main():
     ap.add_argument("--loss", type=float, default=0.005, help="fraction of lost packets")
     ap.add_argument("--truth", default="sim_truth.csv", help="log of planted responses")
     ap.add_argument("--duration", type=float, default=0, help="stop after N seconds")
+    ap.add_argument("--motion", type=float, default=0.5,
+                    help="finger movements per minute (motion artefacts in the PPG; 0 = none)")
     ap.add_argument("--seed", type=int, default=None)
     args = ap.parse_args()
     i18n.init_from_config()
 
     rng = random.Random(args.seed)
-    body = Body(rng, args.spont)
+    body = Body(rng, args.spont, args.motion)
     net = NetSender((args.host, args.port), rng, args.loss, args.jitter_ms, args.stall_every)
     net.start()
 
@@ -249,13 +279,16 @@ def main():
     truth_f = open(args.truth, "w", newline="", encoding="utf-8")
     truth = csv.writer(truth_f)
     truth.writerow(["kind", "label", "stim_device_us", "onset_device_us", "scr_amp_uS",
-                    "hr_response", "sigh"])
+                    "hr_response", "sigh", "end_device_us"])
     beats_f = open(args.truth.replace(".csv", "_beats.csv"), "w", newline="")
     beats = csv.writer(beats_f)
     beats.writerow(["beat_device_us"])
 
     def on_spont(t, amp):
-        truth.writerow(["spontaneous", "", "", dev_us(t), f"{amp:.4f}", 0, 0])
+        truth.writerow(["spontaneous", "", "", dev_us(t), f"{amp:.4f}", 0, 0, ""])
+
+    def on_motion(t0, t1):
+        truth.writerow(["motion", "", "", dev_us(t0), "", 0, 0, dev_us(t1)])
 
     # markers from the receiver
     marks = queue.Queue()
@@ -300,9 +333,9 @@ def main():
                     if sigh:
                         body.add_sigh(t_stim)
                     truth.writerow(["response", label, dev_us(t_stim), dev_us(onset),
-                                    f"{amp:.4f}", 1, int(sigh)])
+                                    f"{amp:.4f}", 1, int(sigh), ""])
                 else:
-                    truth.writerow(["no_response", label, dev_us(t_stim), "", "", 0, 0])
+                    truth.writerow(["no_response", label, dev_us(t_stim), "", "", 0, 0, ""])
                 truth_f.flush()
 
             ir = np.zeros(n, np.int64)
@@ -312,7 +345,7 @@ def main():
             for i in range(n):
                 t = t_block + i / P.BASE_RATE_HZ
                 slow = (i % P.SLOW_DIV) == 0
-                a, b, e, r = body.step(t, slow, on_spont)
+                a, b, e, r = body.step(t, slow, on_spont, on_motion)
                 ir[i], red[i] = a, b
                 if slow:
                     eda.append(round(e * 1000))       # nS

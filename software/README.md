@@ -18,7 +18,8 @@ If Windows asks about network access for Python, allow it for private networks.
 Press **R** to record, then place markers with **1…9**, **Space**, **B**.
 The simulator responds like a body with 80 % probability: a rise in skin
 conductance 1–2.5 s later, a heart-rate dip then rise, sometimes a deep breath.
-It also produces spontaneous responses unrelated to markers, as a real body does.
+It also produces spontaneous responses unrelated to markers, as a real body does,
+and about once every two minutes a finger movement (`--motion`, per minute).
 
 ## With the device
 
@@ -72,6 +73,25 @@ kept; this was checked on synthetic cases. A rejected beat shows as a gap in the
 heart-rate line, never as an invented value. The raw PPG is always recorded in
 full, and the analysis prints how many intervals were rejected; above 10 % it
 warns that the sensor contact was poor.
+
+## Movement artefacts
+
+A moving finger or a pressed sensor shows in the pulse wave as a short burst
+far larger than usual (or as the pulse almost vanishing). Such stretches are
+shaded grey on all plots and the status panel says "movement". Inside them the
+heart rate and the PPG breathing curve are not shown, and they are left out of
+the breathing rate and of the heart-rate response around markers. The skin
+conductance is not affected. Raw data are recorded in full; the analysis
+reports how many artefacts there were and how long, shades them in
+`overview.png`, and adds `motion_s` (seconds of movement in each marker's
+window) to `responses.csv`.
+
+Detection: local pulse-wave range (1.5 s) above 3× or below 0.15× its median
+over the surrounding minute, widened by 1.5 s before and 2.5 s after. The low
+limit is kept small on purpose: after a deep breath the finger pulse normally
+shrinks to ~40 % for several seconds, and that is physiology. Simulator check:
+all movements detected; 5 minutes with 10 deep breaths and no movement gave no
+false bands.
 
 ## Breathing without a sensor
 
