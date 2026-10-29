@@ -135,7 +135,8 @@ def main():
         print(tr("an_beats_poor"))
 
     # breathing: the device's sensor channel, or estimated from the PPG when there is none
-    tb, yb = BR.from_ppg(tf, fast[:, 3].astype(float))
+    tb, mods = BR.modulations(tf, fast[:, 3].astype(float), beats)
+    yb = mods.get("riiv", np.array([]))
     has_sensor = bool(np.nanmax(np.abs(resp)) > 0)
     src = meta["config"].get("breathing_source", "auto")
     use_ppg = src == "ppg" or (src == "auto" and not has_sensor)
@@ -147,8 +148,8 @@ def main():
         # median of 60 s windows, keeping only windows with a clear rhythm
         rates = []
         for i in range(0, len(yb) - 600 + 1, 300):
-            r_, q_ = BR.rate(yb[i:i + 600])
-            if q_ >= 0.3:
+            r_, q_ = BR.rate_fused({k: v[i:i + 600] for k, v in mods.items()})
+            if q_ >= 0.6:
                 rates.append(r_)
         if rates:
             print(tr("an_breath_ppg", br=np.median(rates), n=len(rates)))
@@ -158,7 +159,7 @@ def main():
             ref = sosfiltfilt(BR._SOS, ref - ref.mean())
             k = slice(100, -100)
             print(tr("an_breath_check", r=np.corrcoef(yb[k], ref[k])[0, 1],
-                     a=BR.rate(yb)[0], b=BR.rate(ref)[0]))
+                     a=np.median(rates) if rates else float("nan"), b=BR.rate_count(ref)[0]))
 
     def hr_at(t):
         return np.interp(t, hr_t, hr_v, left=np.nan, right=np.nan)

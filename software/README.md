@@ -82,6 +82,13 @@ the finger PPG baseline; `breathing.py` extracts that rhythm (8–36 breaths per
 minute). It shows rhythm, pauses and deep breaths, not breathing volume, and
 whether inhalation goes up or down depends on the person.
 
+The breathing **rate** is counted breath by breath in three signals and
+combined: the baseline shift, the heart rate (it rises on inhalation) and the
+pulse amplitude. The last two are not disturbed by slow baseline drift. On
+synthetic data the rate error is about 1 breath/min; breathing slower than
+about 8/min is at the edge of the range and is overestimated. The rate is
+shown as "—" when the three signals disagree.
+
 `"breathing_source"` in `config.json`: `"auto"` (default: sensor if present,
 otherwise PPG), `"sensor"` or `"ppg"`. The analysis reports the breathing rate
 from PPG and, when a sensor is present, how well the two agree.
