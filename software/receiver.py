@@ -21,6 +21,7 @@ import time
 import numpy as np
 
 import breathing as BR
+import motion as MO
 import protocol as P
 from i18n import tr
 from receiver_core import Engine, eda_is_uS, eda_units, load_config
@@ -256,6 +257,26 @@ def run_gui(engine):
         sc.activated.connect(fn)
         shortcuts.append(sc)
 
+    # ---- motion artefacts: grey bands on all plots
+    motion_items = []
+
+    def draw_motion():
+        key = tuple((round(a, 1), round(b, 1)) for a, b in state.get("motion", []))
+        if key == state.get("motion_drawn"):
+            return                                # unchanged: keep the existing bands
+        state["motion_drawn"] = key
+        for p, it in motion_items:
+            p.removeItem(it)
+        motion_items.clear()
+        for s0, s1 in state.get("motion", []):
+            for p in plots:
+                it = pg.LinearRegionItem(values=(s0, s1), movable=False,
+                                         brush=pg.mkBrush(120, 120, 120, 50),
+                                         pen=pg.mkPen(None))
+                it.setZValue(-10)
+                p.addItem(it, ignoreBounds=True)
+                motion_items.append((p, it))
+
     # ---- refresh
     state = {"pk": 0, "pk_t": time.perf_counter(), "rate": 0.0, "st": 0.0}
     DISPLAY_DELAY = 0.25
@@ -299,25 +320,45 @@ def run_gui(engine):
                 yy = sosfiltfilt(sos_disp, yy - yy.mean())
                 yy[~ok] = np.nan
                 c_ppg.setData(t, yy)
-        # breathing from the pulse wave: recomputed twice a second over the last 90 s
-        if state.get("resp_ppg") and len(f) > 50 and time.perf_counter() - state.get("br_calc", 0) > 0.5:
+                state["ppg_y"] = (t, yy)
+        # motion artefacts and PPG breathing: recomputed twice a second over the last 90 s
+        if len(f) > 50 and time.perf_counter() - state.get("br_calc", 0) > 0.5:
             state["br_calc"] = time.perf_counter()
             sel = f[:, 0] > now - 90
             sign = -1 if cfg.get("invert_ppg", True) else 1
-            tb, mods = BR.modulations(f[sel, 0], sign * f[sel, 1], engine.beats.beats)
-            if len(tb):
-                c_resp.setData(tb, mods["riiv"])
-                last = tb > tb[-1] - 60
-                state["br_rate"] = BR.rate_fused({k: v[last] for k, v in mods.items()})
+            raw_ir = sign * f[sel, 1]
+            new = MO.detect(f[sel, 0], raw_ir)
+            t_from = f[sel, 0][0] if sel.any() else now
+            old = [sg for sg in state.get("motion", []) if sg[1] < t_from]
+            state["motion"] = (old + new)[-200:]
+            if state.get("resp_ppg"):
+                tb, mods = BR.modulations(f[sel, 0], raw_ir, engine.beats.beats)
+                if len(tb):
+                    y = mods["riiv"].copy()
+                    y[MO.mask(tb, new)] = np.nan          # a movement is not a breath
+                    c_resp.setData(tb, y)
+                    clean = MO.longest_clean(tb, new, tb[-1] - 60)
+                    state["br_rate"] = (BR.rate_fused({k: v[clean] for k, v in mods.items()})
+                                        if clean.sum() >= 300 else (float("nan"), 0.0))
+            draw_motion()
         if engine.beats.hr:
             hr = np.array(engine.beats.hr)
             sel = hr[:, 0] > x0 - 5
-            c_hr.setData(hr[sel, 0], hr[sel, 1])
+            hv = hr[sel, 1].copy()
+            hv[MO.mask(hr[sel, 0], state.get("motion", []))] = np.nan
+            c_hr.setData(hr[sel, 0], hv)
 
         if not freeze.isChecked():
             p_eda.setXRange(x0, x1, padding=0)
-            for p in (p_hr, p_ppg, p_resp):
+            for p in (p_hr, p_resp):
                 p.enableAutoRange(axis="y")
+            # PPG scale from the clean signal only, so a movement burst does not squash the pulses
+            if "ppg_y" in state:
+                tp, yp = state["ppg_y"]
+                vis = (tp > x0) & np.isfinite(yp) & ~MO.mask(tp, state.get("motion", []))
+                if vis.sum() > 50:
+                    lo, hi = np.percentile(yp[vis], (1, 99))
+                    p_ppg.setYRange(lo - 0.15 * (hi - lo), hi + 0.15 * (hi - lo), padding=0)
             # EDA scale no narrower than eda_min_span, else ADC noise fills the whole plot
             ys = state.get("eda_y")
             if ys is not None and len(ys) and np.isfinite(ys).any():
@@ -361,6 +402,8 @@ def run_gui(engine):
             br, q = state.get("br_rate", (float("nan"), 0.0))
             br_now = f"{br:.0f}" if np.isfinite(br) and q >= 0.6 else "—"
             breath = f"<br>{tr('st_breath', br=br_now)}" if state.get("resp_ppg") else ""
+            if any(s1 > now - 3 for _, s1 in state.get("motion", [])):
+                finger += f" — <span style='color:#c62828'>{tr('st_motion')}</span>"
             status.setText(
                 f"{conn}<br>{tr('st_rate', rate=state['rate'], lost=engine.lost)}"
                 f"<br>{finger}<br>{tr('st_hr', hr=hr_now)}{breath}<br>{sync}{rec}")

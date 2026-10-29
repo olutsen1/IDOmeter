@@ -20,6 +20,7 @@ With --truth it compares the findings with what the simulator planted and prints
 clock-alignment accuracy, sensitivity and amplitude error.
 """
 import argparse
+import warnings
 import csv
 import json
 import os
@@ -28,6 +29,7 @@ import sys
 import numpy as np
 
 import breathing as BR
+import motion as MO
 import protocol as P
 from i18n import tr
 from clocksync import fit_global
@@ -123,13 +125,17 @@ def main():
     sign = -1 if meta["config"].get("invert_ppg", True) else 1
     beats = detect_beats(tf, sign * fast[:, 3].astype(float))
     ibi = np.diff(beats)
-    okb = clean_ibi(ibi)
+    # motion artefacts: heart rate and PPG breathing inside them are not used
+    segs = MO.detect(tf, fast[:, 3].astype(float))
+    mot_s = sum(e - s for s, e in segs)
+    okb = clean_ibi(ibi) & ~MO.mask(beats[1:], segs)
     hr_t = beats[1:][okb]
     hr_v = 60.0 / ibi[okb]
     hr_plot = np.where(okb, 60.0 / np.where(ibi > 0, ibi, np.nan), np.nan)   # gaps at rejected beats
     print(tr("an_noise", noise=noise, thr=thr, units=units))
     print(tr("an_beats", n=len(beats), hr=np.median(hr_v)))
-    n_rej = int((~okb).sum())
+    print(tr("an_motion", n=len(segs), s=mot_s, pct=100.0 * mot_s / max(tf[-1] - tf[0], 1)))
+    n_rej = int((~clean_ibi(ibi)).sum())
     print(tr("an_beats_rejected", n=n_rej, pct=100.0 * n_rej / max(len(okb), 1)))
     if n_rej > 0.1 * len(okb):
         print(tr("an_beats_poor"))
@@ -141,14 +147,21 @@ def main():
     src = meta["config"].get("breathing_source", "auto")
     use_ppg = src == "ppg" or (src == "auto" and not has_sensor)
     if use_ppg and len(tb):
-        resp_t, resp_y, resp_label = tb, yb, tr("an_y_resp_ppg")
+        resp_y = yb.copy()
+        resp_y[MO.mask(tb, segs)] = np.nan                  # a movement is not a breath
+        resp_t, resp_label = tb, tr("an_y_resp_ppg")
     else:
         resp_t, resp_y, resp_label = ts, resp, tr("an_y_resp")
     if len(tb):
         # median of 60 s windows, keeping only windows with a clear rhythm
         rates = []
+        tb_mot = MO.mask(tb, segs)
         for i in range(0, len(yb) - 600 + 1, 300):
-            r_, q_ = BR.rate_fused({k: v[i:i + 600] for k, v in mods.items()})
+            # the longest stretch without motion inside this 60 s window, at least 30 s
+            clean = MO.longest_clean(tb[i:i + 600], segs, tb[i])
+            if clean.sum() < 300:
+                continue
+            r_, q_ = BR.rate_fused({k: v[i:i + 600][clean] for k, v in mods.items()})
             if q_ >= 0.6:
                 rates.append(r_)
         if rates:
@@ -157,12 +170,16 @@ def main():
             from scipy.signal import sosfiltfilt
             ref = np.interp(tb, ts, resp)
             ref = sosfiltfilt(BR._SOS, ref - ref.mean())
-            k = slice(100, -100)
+            k = np.zeros(len(tb), bool)
+            k[100:-100] = True
+            k &= ~tb_mot
             print(tr("an_breath_check", r=np.corrcoef(yb[k], ref[k])[0, 1],
                      a=np.median(rates) if rates else float("nan"), b=BR.rate_count(ref)[0]))
 
     def hr_at(t):
-        return np.interp(t, hr_t, hr_v, left=np.nan, right=np.nan)
+        h = np.interp(t, hr_t, hr_v, left=np.nan, right=np.nan)
+        h[MO.mask(t, segs)] = np.nan
+        return h
 
     # 3. windows around markers
     eg = np.arange(EDA_WIN[0], EDA_WIN[1] + 1e-9, 1 / P.SLOW_RATE_HZ)
@@ -173,6 +190,7 @@ def main():
         e_rel = e - np.mean(e[(eg >= -2) & (eg < 0)])
         amp, lat = scr_measure(eg, e_rel, thr)
         h = hr_at(t0 + hg)
+        warnings.simplefilter("ignore", RuntimeWarning)       # all-NaN windows (motion) give NaN
         with np.errstate(all="ignore"):
             hb = np.nanmean(h[(hg >= -3) & (hg < 0)])
             h_rel = h - hb
@@ -194,7 +212,8 @@ def main():
                      "scr_detected": int(not np.isnan(lat)),
                      "hr_baseline": round(float(hb), 1),
                      "hr_change_0.5-3s": round(float(dec), 1),
-                     "hr_change_3-8s": round(float(acc), 1)})
+                     "hr_change_3-8s": round(float(acc), 1),
+                     "motion_s": round(sum(max(0.0, min(e, t0 + EDA_WIN[1]) - max(s_, t0 + EDA_WIN[0])) for s_, e in segs), 1)})
         per_label.setdefault(m["label"], []).append((e_rel, h_rel))
 
     # Chance level: the same measurement at moments far from all markers.
@@ -231,15 +250,15 @@ def main():
 
     # 4. check against the simulator
     if args.truth:
-        check_truth(args.truth, to_host, markers, rows, beats)
+        check_truth(args.truth, to_host, markers, rows, beats, segs, (tf[0], tf[-1]))
 
     # 5. plots
     if not args.no_plots:
-        plot_all(out, ts, eda, resp_t, resp_y, resp_label, beats[1:], hr_plot, markers, per_label, eg, hg, units)
+        plot_all(out, ts, eda, resp_t, resp_y, resp_label, beats[1:], hr_plot, markers, per_label, eg, hg, units, segs)
         print(tr("an_outputs", path=out))
 
 
-def check_truth(path, to_host, markers, rows, beats):
+def check_truth(path, to_host, markers, rows, beats, segs=(), span=(0, 0)):
     truth = []
     with open(path, encoding="utf-8") as f:
         for r in csv.DictReader(f):
@@ -277,6 +296,17 @@ def check_truth(path, to_host, markers, rows, beats):
     if amp_err:
         print(tr("an_truth_amp", mean=np.mean(amp_err), sd=np.std(amp_err)))
         print(tr("an_truth_lat", mean=np.mean(lat_err)))
+    mv = []
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if r["kind"] == "motion" and r.get("end_device_us"):
+                a, b = float(to_host(int(r["onset_device_us"]))), float(to_host(int(r["end_device_us"])))
+                if a > span[0] + 5 and b < span[1] - 3:
+                    mv.append((a, b))
+    if mv:
+        hit = sum(any(s0 <= b and a <= s1 for s0, s1 in segs) for a, b in mv)
+        false = sum(not any(s0 <= b + 0.5 and a - 0.5 <= s1 for a, b in mv) for s0, s1 in segs)
+        print(tr("an_truth_motion", hit=hit, n=len(mv), false=false, segs=len(segs)))
     bpath = path.replace(".csv", "_beats.csv")
     if os.path.exists(bpath) and len(beats):
         tb = to_host(np.loadtxt(bpath, delimiter=",", skiprows=1, ndmin=1))
@@ -287,7 +317,7 @@ def check_truth(path, to_host, markers, rows, beats):
         print(tr("an_truth_beats", planted=len(tb), found=len(beats), sd=1000 * np.std(d[good])))
 
 
-def plot_all(out, ts, eda, resp_t, resp_y, resp_label, hr_t, hr_v, markers, per_label, eg, hg, units):
+def plot_all(out, ts, eda, resp_t, resp_y, resp_label, hr_t, hr_v, markers, per_label, eg, hg, units, segs=()):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -306,6 +336,9 @@ def plot_all(out, ts, eda, resp_t, resp_y, resp_label, hr_t, hr_v, markers, per_
     ax[2].plot((resp_t - t0) / 60, resp_y, lw=0.6, color="#2ca02c")
     ax[2].set_ylabel(resp_label)
     ax[2].set_xlabel(tr("an_x_min"))
+    for s0, s1 in segs:                                   # motion artefacts
+        for a in ax:
+            a.axvspan((s0 - t0) / 60, (s1 - t0) / 60, color="#9e9e9e", alpha=0.25, lw=0)
     seen = set()
     for m in markers:
         x = (m["t"] - t0) / 60
