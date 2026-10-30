@@ -87,7 +87,9 @@ reports how many artefacts there were and how long, shades them in
 window) to `responses.csv`.
 
 Detection: local pulse-wave range (1.5 s) above 3× or below 0.15× its median
-over the surrounding minute, widened by 1.5 s before and 2.5 s after. The low
+over the surrounding minute, **or** a beat whose shape correlates below 0.75
+with the typical shape of the surrounding beats (a gentle movement distorts
+the pulse without making it larger); widened by 1.5 s before and 2.5 s after. The low
 limit is kept small on purpose: after a deep breath the finger pulse normally
 shrinks to ~40 % for several seconds, and that is physiology. Simulator check:
 all movements detected; 5 minutes with 10 deep breaths and no movement gave no

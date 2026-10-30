@@ -327,7 +327,7 @@ def run_gui(engine):
             sel = f[:, 0] > now - 90
             sign = -1 if cfg.get("invert_ppg", True) else 1
             raw_ir = sign * f[sel, 1]
-            new = MO.detect(f[sel, 0], raw_ir)
+            new = MO.detect(f[sel, 0], raw_ir, beats=engine.beats.beats)
             t_from = f[sel, 0][0] if sel.any() else now
             old = [sg for sg in state.get("motion", []) if sg[1] < t_from]
             state["motion"] = (old + new)[-200:]

@@ -126,7 +126,7 @@ def main():
     beats = detect_beats(tf, sign * fast[:, 3].astype(float))
     ibi = np.diff(beats)
     # motion artefacts: heart rate and PPG breathing inside them are not used
-    segs = MO.detect(tf, fast[:, 3].astype(float))
+    segs = MO.detect(tf, fast[:, 3].astype(float), beats=beats)
     mot_s = sum(e - s for s, e in segs)
     okb = clean_ibi(ibi) & ~MO.mask(beats[1:], segs)
     hr_t = beats[1:][okb]
