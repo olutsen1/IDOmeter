@@ -13,7 +13,7 @@ import threading
 import time
 
 import numpy as np
-from scipy.signal import butter, find_peaks, sosfiltfilt
+from scipy.signal import butter, find_peaks, medfilt, sosfiltfilt
 
 import i18n
 import protocol as P
@@ -101,6 +101,24 @@ class Ring:
 # ---------------------------------------------------------------- heart rate
 
 _SOS = butter(2, [0.7, 3.5], btype="band", fs=P.BASE_RATE_HZ, output="sos")
+
+
+def despike(x):
+    """Remove 1–2-sample glitches from the PPG (5-point median), keeping NaN gaps.
+
+    On the real device the raw PPG has 2-sample out-of-place values every few
+    seconds (seen in both LED channels at once). A 50 ms median removes them
+    and leaves the pulse shape and beat timing practically unchanged. Raw data
+    are still recorded as received; this is applied before processing only.
+    """
+    x = np.asarray(x, float)
+    ok = np.isfinite(x)
+    if ok.sum() < 5:
+        return x
+    y = np.interp(np.arange(len(x)), np.where(ok)[0], x[ok])
+    y = medfilt(y, 5)
+    y[~ok] = np.nan
+    return y
 
 
 def detect_beats(t, ppg, fs=P.BASE_RATE_HZ):
@@ -350,7 +368,8 @@ class Engine:
             self._beat_tick = now
             tail = self.fast.tail()
             if len(tail):
-                self.beats.update(tail[:, 0], tail[:, 1], now)
+                sel = tail[:, 0] > now - 15
+                self.beats.update(tail[sel, 0], despike(tail[sel, 1]), now)
         return n
 
     def _handle(self, pkt, arrival):

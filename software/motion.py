@@ -23,6 +23,13 @@ is also checked: the beat waveform (−0.35…+0.45 s around the peak, amplitude
 normalised) is correlated with the median shape of the surrounding beats.
 A beat whose correlation is below SHAPE_MIN is flagged. Normalising the
 amplitude keeps vasoconstriction (smaller but same-shaped beats) unflagged.
+
+A change of finger pressure can shift the whole baseline in a fraction of a
+second without changing the beat shape; the breathing curve would show it as
+a breath. So the level of each beat's foot (diastolic end) is compared with
+the beat two places earlier; a change of more than STEP_MAX pulse amplitudes
+is flagged. On a real recording such a step measured 1.35 pulse amplitudes
+while quiet breathing stayed below 0.56.
 """
 import numpy as np
 from scipy.ndimage import maximum_filter1d, median_filter, minimum_filter1d
@@ -37,6 +44,7 @@ PAD_AFTER = 2.5
 SHAPE_MIN = 0.75            # correlation with the typical beat shape
 SHAPE_WIN = (-0.35, 0.45)   # s around the systolic peak
 SHAPE_REF = 15              # beats on each side forming the typical shape
+STEP_MAX = 1.0              # baseline change over two beats, in pulse amplitudes
 _FS_OUT = 10
 _SOS = butter(2, (0.5, 5.0), btype="band", fs=100, output="sos")
 
@@ -92,6 +100,17 @@ def detect(t, ir, fs=100, beats=None):
         corr = beat_shapes(t, y, b, fs)
         for tb in b[np.isfinite(corr) & (corr < SHAPE_MIN)]:
             bad |= (ta >= tb + SHAPE_WIN[0]) & (ta <= tb + SHAPE_WIN[1])
+        foot, amp = [], []
+        for tb in b:
+            s = x[(t >= tb - 0.45) & (t <= tb + 0.05)]
+            foot.append(s.max() if len(s) > 5 else np.nan)
+            amp.append(s.max() - s.min() if len(s) > 5 else np.nan)
+        foot = np.array(foot)
+        pa = np.nanmedian(amp) if len(amp) else np.nan
+        if len(b) >= 3 and np.isfinite(pa) and pa > 0:
+            step = np.abs(foot[2:] - foot[:-2]) / pa
+            for i in np.where(step > STEP_MAX)[0]:
+                bad |= (ta >= b[i]) & (ta <= b[i + 2])
     return _segments(ta, bad)
 
 

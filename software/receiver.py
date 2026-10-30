@@ -24,7 +24,7 @@ import breathing as BR
 import motion as MO
 import protocol as P
 from i18n import tr
-from receiver_core import Engine, eda_is_uS, eda_units, load_config
+from receiver_core import Engine, despike, eda_is_uS, eda_units, load_config
 
 MARKER_COLORS = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
                  "#42d4f4", "#f032e6", "#9a6324", "#808000", "#000075",
@@ -311,6 +311,9 @@ def run_gui(engine):
                 if use_ppg:
                     c_resp.setData([], [])
         f = engine.fast.tail()
+        if len(f):
+            f = f[f[:, 0] > now - 95].copy()
+            f[:, 1] = despike(f[:, 1])
         if len(f) > 50:
             sel = f[:, 0] > x0 - 2
             t, y = f[sel, 0], f[sel, 1]
