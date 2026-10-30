@@ -33,7 +33,7 @@ import motion as MO
 import protocol as P
 from i18n import tr
 from clocksync import fit_global
-from receiver_core import clean_ibi, detect_beats
+from receiver_core import clean_ibi, despike, detect_beats
 
 SCR_MIN_US = 0.05          # "response present" threshold, µS (typically 0.01–0.05)
 EDA_WIN = (-3.0, 12.0)
@@ -105,6 +105,7 @@ def main():
     ts = to_host(slow[:, 1])
     order = np.argsort(tf)
     tf, fast = tf[order], fast[order]
+    fast[:, 3] = despike(fast[:, 3])          # 1–2-sample glitches from the sensor link
     order = np.argsort(ts)
     ts, slow = ts[order], slow[order]
     eda_raw = slow[:, 4]
@@ -126,7 +127,7 @@ def main():
     beats = detect_beats(tf, sign * fast[:, 3].astype(float))
     ibi = np.diff(beats)
     # motion artefacts: heart rate and PPG breathing inside them are not used
-    segs = MO.detect(tf, fast[:, 3].astype(float))
+    segs = MO.detect(tf, fast[:, 3].astype(float), beats=beats)
     mot_s = sum(e - s for s, e in segs)
     okb = clean_ibi(ibi) & ~MO.mask(beats[1:], segs)
     hr_t = beats[1:][okb]

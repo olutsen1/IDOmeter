@@ -155,10 +155,13 @@ class Body:
         amp = (1 + 0.08 * resp) * self._vasoconstriction(t)
         if self.motion_rate and self.rng.random() < self.motion_rate * dt:
             dur = self.rng.uniform(0.5, 2.0)
-            self.motion.append((t, dur, self.rng.uniform(4000, 12000) * self.rng.choice((-1, 1)),
-                                self.rng.uniform(0.7, 3.0)))
+            if self.rng.random() < 0.5:     # gentle: pulse-sized, distorts the shape
+                kind, a, f = "gentle", self.rng.uniform(800, 2500), self.rng.uniform(2.0, 5.0)
+            else:                           # strong: a burst far above the pulse
+                kind, a, f = "strong", self.rng.uniform(4000, 12000), self.rng.uniform(0.7, 3.0)
+            self.motion.append((t, dur, a * self.rng.choice((-1, 1)), f))
             if motion_cb:
-                motion_cb(t, t + dur)
+                motion_cb(t, t + dur, kind)
         self.motion = [mv for mv in self.motion if t - mv[0] < mv[1] + 0.1]
         mot = self._motion(t)
         ir = 120000 + self.ppg_drift + mayer + mot + 150 * resp - 1300 * amp * pulse + self.rng.gauss(0, 25)
@@ -287,8 +290,8 @@ def main():
     def on_spont(t, amp):
         truth.writerow(["spontaneous", "", "", dev_us(t), f"{amp:.4f}", 0, 0, ""])
 
-    def on_motion(t0, t1):
-        truth.writerow(["motion", "", "", dev_us(t0), "", 0, 0, dev_us(t1)])
+    def on_motion(t0, t1, kind):
+        truth.writerow(["motion", kind, "", dev_us(t0), "", 0, 0, dev_us(t1)])
 
     # markers from the receiver
     marks = queue.Queue()
