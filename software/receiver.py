@@ -56,6 +56,114 @@ def run_headless(engine, duration, auto_every):
 
 # ---------------------------------------------------------------- window
 
+# ---- status panel (top of the side panel)
+PANEL_CSS = """
+QFrame#card { background: #f6f7f9; border: 1px solid #e2e5ea; border-radius: 8px; }
+QLabel#caption { color: #6b7280; font-size: 9pt; }
+QLabel#unit { color: #6b7280; font-size: 10pt; }
+QLabel#small { color: #6b7280; font-size: 8.5pt; }
+QLabel#conn { font-weight: 600; }
+"""
+DOT = {"ok": "#2e7d32", "bad": "#c62828", "idle": "#9aa0a6"}
+CHIP = {"ok": ("#e6f4ea", "#1e6b30"), "bad": ("#fdecea", "#b3261e"),
+        "warn": ("#fff4e5", "#a85b00"), "rec": ("#c62828", "#ffffff")}
+
+
+def build_status_panel(vl, show_breath=True):
+    """Connection card, heart-rate / breathing tiles and state chips.
+
+    Returns a simple namespace with the widgets and setters used by refresh().
+    """
+    from types import SimpleNamespace
+
+    from pyqtgraph.Qt import QtCore, QtWidgets
+    ns = SimpleNamespace()
+
+    def card():
+        f = QtWidgets.QFrame()
+        f.setObjectName("card")
+        lay = QtWidgets.QVBoxLayout(f)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(2)
+        return f, lay
+
+    def label(text="", name=None):
+        w = QtWidgets.QLabel(text)
+        if name:
+            w.setObjectName(name)
+        return w
+
+    # connection: coloured dot, state, device address; link quality and clock below
+    c, cl = card()
+    top = QtWidgets.QHBoxLayout()
+    top.setSpacing(6)
+    ns.dot = label("●")
+    ns.conn = label("", "conn")
+    ns.peer = label("", "small")
+    top.addWidget(ns.dot)
+    top.addWidget(ns.conn)
+    top.addStretch(1)
+    top.addWidget(ns.peer)
+    cl.addLayout(top)
+    ns.link = label("", "small")
+    ns.sync = label("", "small")
+    cl.addWidget(ns.link)
+    cl.addWidget(ns.sync)
+    vl.addWidget(c)
+
+    # vital tiles; colours match the plot lines
+    def tile(caption, unit, color):
+        f, lay = card()
+        lay.addWidget(label(caption, "caption"))
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(4)
+        big = label("—", "big")
+        big.setStyleSheet(f"color: {color}; font-size: 28pt; font-weight: 600;")
+        row.addWidget(big)
+        u = label(unit, "unit")
+        u.setAlignment(QtCore.Qt.AlignmentFlag.AlignBottom)
+        row.addWidget(u, 0, QtCore.Qt.AlignmentFlag.AlignBottom)
+        row.addStretch(1)
+        lay.addLayout(row)
+        return f, big
+
+    tiles = QtWidgets.QHBoxLayout()
+    tiles.setSpacing(8)
+    hr_tile, ns.hr = tile(tr("tile_hr"), tr("units_bpm"), "#d62728")
+    ns.br_tile, ns.br = tile(tr("tile_breath"), tr("units_per_min"), "#2ca02c")
+    ns.br_tile.setVisible(show_breath)
+    tiles.addWidget(hr_tile, 1)
+    tiles.addWidget(ns.br_tile, 1)
+    vl.addLayout(tiles)
+
+    # state chips: finger, movement, recording
+    chips = QtWidgets.QHBoxLayout()
+    chips.setSpacing(6)
+    ns.finger, ns.motion, ns.rec = label("", "chip"), label("", "chip"), label("", "chip")
+    for w in (ns.finger, ns.motion, ns.rec):
+        chips.addWidget(w)
+    chips.addStretch(1)
+    ns.motion.setVisible(False)
+    ns.rec.setVisible(False)
+    vl.addLayout(chips)
+    vl.addSpacing(4)
+
+    def set_conn(kind, text, peer):
+        ns.dot.setStyleSheet(f"color: {DOT[kind]}; font-size: 14pt;")
+        ns.conn.setText(text)
+        ns.peer.setText(peer)
+
+    def set_chip(w, text, kind, visible=True):
+        bg, fg = CHIP[kind]
+        w.setText(text)
+        w.setStyleSheet(f"background: {bg}; color: {fg}; border-radius: 10px; padding: 2px 9px; font-size: 9pt;")
+        w.setVisible(visible)
+
+    ns.set_conn, ns.set_chip = set_conn, set_chip
+    set_conn("idle", "", "")
+    return ns
+
+
 def run_gui(engine):
     import pyqtgraph as pg
     from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
@@ -119,10 +227,8 @@ def run_gui(engine):
     hl.addWidget(side)
     vl = QtWidgets.QVBoxLayout(side)
 
-    status = QtWidgets.QLabel()
-    status.setWordWrap(True)
-    status.setTextFormat(QtCore.Qt.TextFormat.RichText)
-    vl.addWidget(status)
+    side.setStyleSheet(PANEL_CSS)
+    st = build_status_panel(vl, show_breath=True)
 
     rec_btn = QtWidgets.QPushButton(tr("btn_rec_start"))
     rec_btn.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
@@ -383,33 +489,33 @@ def run_gui(engine):
             state["pk"], state["pk_t"] = engine.packets, time.perf_counter()
             state["st"] = time.perf_counter()
             if engine.connected():
-                conn = f"<span style='color:#2e7d32'>{tr('st_connected')}</span> ({engine.peer[0]})"
+                st.set_conn("ok", tr("st_connected"), engine.peer[0])
             elif engine.packets:
-                conn = f"<span style='color:#c62828'>{tr('st_lost')}</span>"
+                st.set_conn("bad", tr("st_lost"), "")
             else:
-                conn = f"<span style='color:#888'>{tr('st_waiting', port=cfg['listen_port'])}</span>"
-            finger = (tr("st_finger") if engine.last_flags & P.FLAG_FINGER
-                      else f"<span style='color:#c62828'>{tr('st_no_finger')}</span>")
-            good = [v for _, v in engine.beats.hr[-3:] if np.isfinite(v)]
-            hr_now = f"{good[-1]:.0f}" if good else "—"
+                st.set_conn("idle", tr("st_waiting", port=cfg["listen_port"]), "")
+            st.link.setText(tr("st_rate", rate=state["rate"], lost=engine.lost))
             if not engine.sync.ready:
-                sync = "—"
+                st.sync.setText("")
             elif len(engine.sync.buckets) < 30:     # under a minute: the slope is not reliable yet
-                sync = tr("st_sync_pending", lat=engine.sync.latency_ms())
+                st.sync.setText(tr("st_sync_pending", lat=engine.sync.latency_ms()))
             else:
-                sync = tr("st_sync", drift=engine.sync.drift_ppm, lat=engine.sync.latency_ms())
-            rec = ""
+                st.sync.setText(tr("st_sync", drift=engine.sync.drift_ppm, lat=engine.sync.latency_ms()))
+            good = [v for _, v in engine.beats.hr[-3:] if np.isfinite(v)]
+            st.hr.setText(f"{good[-1]:.0f}" if good else "—")
+            br, q = state.get("br_rate", (float("nan"), 0.0))
+            st.br.setText(f"{br:.0f}" if np.isfinite(br) and q >= 0.6 else "—")
+            st.br_tile.setVisible(bool(state.get("resp_ppg")))
+            finger_on = bool(engine.last_flags & P.FLAG_FINGER)
+            st.set_chip(st.finger, tr("st_finger") if finger_on else tr("st_no_finger"),
+                        "ok" if finger_on else "bad")
+            moving = any(s1 > now - 3 for _, s1 in state.get("motion", []))
+            st.set_chip(st.motion, tr("st_motion"), "warn", visible=moving)
             if engine.recorder:
                 el = now - engine.recorder.meta["record_start_t"]
-                rec = f"<br><b style='color:#c62828'>{tr('st_recording', mm=int(el // 60), ss=int(el % 60))}</b>"
-            br, q = state.get("br_rate", (float("nan"), 0.0))
-            br_now = f"{br:.0f}" if np.isfinite(br) and q >= 0.6 else "—"
-            breath = f"<br>{tr('st_breath', br=br_now)}" if state.get("resp_ppg") else ""
-            if any(s1 > now - 3 for _, s1 in state.get("motion", [])):
-                finger += f" — <span style='color:#c62828'>{tr('st_motion')}</span>"
-            status.setText(
-                f"{conn}<br>{tr('st_rate', rate=state['rate'], lost=engine.lost)}"
-                f"<br>{finger}<br>{tr('st_hr', hr=hr_now)}{breath}<br>{sync}{rec}")
+                st.set_chip(st.rec, tr("st_recording", mm=int(el // 60), ss=int(el % 60)), "rec")
+            else:
+                st.rec.setVisible(False)
 
     def safe_refresh():
         # an error in one frame must not close the program
