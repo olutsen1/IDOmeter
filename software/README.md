@@ -10,6 +10,12 @@ Grafana.
 1. Install Python 3.11 or newer from python.org.
 2. Run `1_install.bat`.
 
+**Linux (Ubuntu/Debian):** open a terminal in `software/` and run
+`./1_install.sh` once (it may ask for your password to install two system
+packages). Then use `./2_demo_with_simulator.sh`, `./3_receiver_real_device.sh`
+and `./4_analyze_last_session.sh` instead of the `.bat` files. If the `ufw`
+firewall is enabled, allow the device's port: `sudo ufw allow 5005/udp`.
+
 ## Try it without hardware
 
 Run `2_demo_with_simulator.bat`. A simulator console and the app window open.

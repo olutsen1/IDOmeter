@@ -10,6 +10,12 @@
    галочку **«Add python.exe to PATH»**, поставте її.
 2. Запустіть `1_install.bat`.
 
+**Linux (Ubuntu/Debian):** відкрийте термінал у теці `software/` і один раз
+виконайте `./1_install.sh` (може запитати пароль, щоб встановити два системні
+пакети). Далі замість `.bat` використовуйте `./2_demo_with_simulator.sh`,
+`./3_receiver_real_device.sh` і `./4_analyze_last_session.sh`. Якщо увімкнено
+брандмауер `ufw`, відкрийте порт приладу: `sudo ufw allow 5005/udp`.
+
 ## Спробувати без приладу
 
 Запустіть `2_demo_with_simulator.bat`. Відкриються два вікна: консоль симулятора
