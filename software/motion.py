@@ -28,8 +28,15 @@ A change of finger pressure can shift the whole baseline in a fraction of a
 second without changing the beat shape; the breathing curve would show it as
 a breath. So the level of each beat's foot (diastolic end) is compared with
 the beat two places earlier; a change of more than STEP_MAX pulse amplitudes
-is flagged. On a real recording such a step measured 1.35 pulse amplitudes
-while quiet breathing stayed below 0.56.
+is flagged.
+
+Thresholds were set on real recordings. Deep breaths change the baseline by up
+to 2.2 pulse amplitudes within two beats and can lower the beat-shape
+correlation to ~0.69; deliberate finger movements gave steps of 2.3-7.4 and
+correlations of 0.06-0.62. STEP_MAX = 2.5 and SHAPE_MIN = 0.6 keep deep breaths
+unflagged: losing heart rate at the very moment of a breath (often the response
+being studied) costs more than missing a gentle pressure change whose only
+effect is one false "breath" in the PPG breathing curve.
 """
 import numpy as np
 from scipy.ndimage import maximum_filter1d, median_filter, minimum_filter1d
@@ -41,10 +48,10 @@ WINDOW_S = 1.5
 REF_S = 60
 PAD_BEFORE = 1.5
 PAD_AFTER = 2.5
-SHAPE_MIN = 0.75            # correlation with the typical beat shape
+SHAPE_MIN = 0.6             # correlation with the typical beat shape
 SHAPE_WIN = (-0.35, 0.45)   # s around the systolic peak
 SHAPE_REF = 15              # beats on each side forming the typical shape
-STEP_MAX = 1.0              # baseline change over two beats, in pulse amplitudes
+STEP_MAX = 2.5              # baseline change over two beats, in pulse amplitudes
 _FS_OUT = 10
 _SOS = butter(2, (0.5, 5.0), btype="band", fs=100, output="sos")
 
