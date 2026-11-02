@@ -1,4 +1,4 @@
-"""Generate hardware/wiring.svg — module-level wiring of IDOmeter V1.0 + planned ADS1115."""
+"""Generate hardware/wiring.svg — module-level wiring of IDOmeter V1.0 with the ADS1115."""
 import sys
 
 W, H = 1300, 870
@@ -13,7 +13,7 @@ A(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" he
 A('<rect width="100%" height="100%" fill="#ffffff"/>')
 A('<text x="30" y="38" font-size="22" font-weight="bold" fill="#222">IDOmeter V1.0 — wiring</text>')
 A('<text x="30" y="62" fill="#555">Module-level connections, traced from the PCB and firmware. '
-  'Dashed: ADS1115 external ADC (planned).</text>')
+  'Grove SIG goes to both ADCs: ESP32 GPIO36 and ADS1115 A0.</text>')
 
 # ---------------------------------------------------------------- T-Display
 TX, TY, TW = 40, 110, 240
@@ -80,12 +80,12 @@ m, mh = module(100, "MAX30102 pulse sensor", "GY-MAX30102 · I²C address 0x57",
 for p, net in (("VIN", "3V3"), ("GND", "GND"), ("SCL", "SCL"), ("SDA", "SDA")):
     tap(net, m[p])
 
-# ADS1115 (planned)
-a, ah = module(330, "ADS1115 16-bit ADC  (planned)", "I²C address 0x48 · VDD from 3V3 only",
+# ADS1115
+a, ah = module(330, "ADS1115 16-bit ADC", "I²C address 0x48 · VDD from 3V3 only",
                [("A0", None), ("VDD", "3V3"), ("GND", "GND"), ("SCL", "SCL"), ("SDA", "SDA"), ("ADDR → GND", None)],
-               dashed=True)
+               )
 for p, net in (("VDD", "3V3"), ("GND", "GND"), ("SCL", "SCL"), ("SDA", "SDA")):
-    tap(net, a[p], dashed=True)
+    tap(net, a[p])
 
 # Grove GSR, to the right
 GX = 1000
@@ -101,11 +101,11 @@ for net, py in (("3V3", gy_vcc), ("GND", gy_gnd)):
     x = rails[net]
     A(f'<polyline points="{x},{lane} {vx},{lane} {vx},{py} {GX},{py}" fill="none" stroke="{COL[net]}" stroke-width="3"/>')
     dot(x, lane, COL[net])
-# Grove SIG: today to GPIO36 (solid), planned to ADS A0 (dashed)
+# Grove SIG: to GPIO36 and to ADS A0
 jx = GX - 60
 A(f'<polyline points="{GX},{gy_sig} {jx},{gy_sig} {jx},620 {TX+TW+16},620 {TX+TW+16},{tp["36"]} {TX+TW},{tp["36"]}" '
   f'fill="none" stroke="{COL["SIG"]}" stroke-width="3"/>')
-A(f'<line x1="{MX+MW}" y1="{a["A0"]}" x2="{jx}" y2="{gy_sig}" stroke="{COL["SIG"]}" stroke-width="3" stroke-dasharray="8 6"/>')
+A(f'<line x1="{MX+MW}" y1="{a["A0"]}" x2="{jx}" y2="{gy_sig}" stroke="{COL["SIG"]}" stroke-width="3"/>')
 A(f'<circle cx="{MX+MW}" cy="{a["A0"]}" r="5" fill="{COL["SIG"]}"/>')
 A(f'<circle cx="{jx}" cy="{gy_sig}" r="5" fill="{COL["SIG"]}"/>')
 
@@ -130,7 +130,7 @@ notes = [
     "  stays within the ADC input range.",
     "• ADS1115: VDD on 3V3, never 5V.",
     "• A1–A3 free (A1: breathing, later).",
-    "• GPIO36 can stay connected to SIG.",
+    "• SIG goes to GPIO36 and A0 (both ADCs).",
     "• Lines crossing without a dot",
     "  are not connected.",
 ]
