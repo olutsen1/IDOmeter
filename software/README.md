@@ -93,14 +93,16 @@ reports how many artefacts there were and how long, shades them in
 window) to `responses.csv`.
 
 Detection: local pulse-wave range (1.5 s) above 3× or below 0.15× its median
-over the surrounding minute, **or** a beat whose shape correlates below 0.75
+over the surrounding minute, **or** a beat whose shape correlates below 0.6
 with the typical shape of the surrounding beats (a gentle movement distorts
 the pulse without making it larger), **or** a baseline step over two beats
-larger than one pulse amplitude (a change of finger pressure); widened by
+larger than 2.5 pulse amplitudes (a change of finger pressure); widened by
 1.5 s before and 2.5 s after. Before any processing, 1–2-sample glitches in
 the raw PPG are removed with a 50 ms median (the recording keeps raw values).
-Checked on a real recording with six deliberate movements: five flagged; the
-sixth left no visible trace in the signal. The low
+Thresholds were set on real recordings so that deep breaths are not flagged
+(they shift the baseline by up to 2.2 pulse amplitudes); with six deliberate
+finger movements, four were flagged, one left no visible trace and one was a
+slight pressure change that does not disturb heart rate. The low
 limit is kept small on purpose: after a deep breath the finger pulse normally
 shrinks to ~40 % for several seconds, and that is physiology. Simulator check:
 all movements detected; 5 minutes with 10 deep breaths and no movement gave no
