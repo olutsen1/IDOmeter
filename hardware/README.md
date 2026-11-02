@@ -5,14 +5,14 @@
 ![Schematic](schematic.svg)
 
 Schematic of the V1.0 prototype board (single-sided, home-etched), traced from
-the PCB and the firmware. Same net label = connected. The ADS1115 (grey) is a
-planned addition, not yet fitted.
+the PCB and the firmware. Same net label = connected. The ADS1115 (U5) was
+fitted in November 2026.
 
 ## Wiring overview
 
 ![Wiring](wiring.svg)
 
-The same connections drawn as power and bus rails; dashed = ADS1115 (planned).
+The same connections drawn as power and bus rails; the Grove signal goes to both ADCs.
 
 ## Connections
 
@@ -73,9 +73,6 @@ The same board with the MAX30102 pulse sensor in its finger strap.
 
 Copper side (home-etched, single-sided): the ADS1115 and the Grove cable are
 wired point-to-point on this side.
-
-The schematic and wiring drawings above still show the ADS1115 as planned;
-they will be updated.
 
 Both drawings are generated: `tools/make_schematic.py` (needs `schemdraw`)
 and `tools/make_wiring.py`.

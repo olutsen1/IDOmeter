@@ -2,7 +2,7 @@
 Generate hardware/schematic.svg: schematic of the IDOmeter V1.0 board.
 
 Connections use net labels (same name = same net), power symbols for
-+3V3 / +5V / GND. The ADS1115 is drawn in grey as a planned part (DNP).
++3V3 / +5V / GND. U5 (ADS1115) was fitted in November 2026.
 
 Requires schemdraw (pip install schemdraw).
 Usage: python tools/make_schematic.py hardware/schematic.svg
@@ -115,19 +115,19 @@ with schemdraw.Drawing(show=False) as d:
     d += elm.Label().at((8.6, 5.9)).label("finger electrodes", fontsize=10, color="#555")
     d += elm.Label().at((12.5, 1.9)).label("cable soldered to PCB", fontsize=10, color="#555")
 
-    # ---------------------------------------------------------- U5 ADS1115 (planned)
-    u5 = ic(d, (12.5, -4.6), "U5  ADS1115 module  (planned, DNP)", [],
-            ["VDD", "GND", "SCL", "SDA", "ADDR", "ALRT", "A0", "A1", "A2", "A3"], color=GREY, size=(4.0, 7.6))
-    power(d, u5.R_VDD, "+3V3", "R", GREY)
-    power(d, u5.R_GND, "GND", "R", GREY)
-    net(d, u5.R_SCL, "SCL", "R", GREY)
-    net(d, u5.R_SDA, "SDA", "R", GREY)
-    power(d, u5.R_ADDR, "GND", "R", GREY)
+    # ---------------------------------------------------------- U5 ADS1115
+    u5 = ic(d, (12.5, -4.6), "U5  ADS1115 module (16-bit ADC)", [],
+            ["VDD", "GND", "SCL", "SDA", "ADDR", "ALRT", "A0", "A1", "A2", "A3"], size=(4.0, 7.6))
+    power(d, u5.R_VDD, "+3V3", "R")
+    power(d, u5.R_GND, "GND", "R")
+    net(d, u5.R_SCL, "SCL", "R")
+    net(d, u5.R_SDA, "SDA", "R")
+    power(d, u5.R_ADDR, "GND", "R")
     nc(d, u5.R_ALRT)
-    net(d, u5.R_A0, "GSR_SIG", "R", GREY)
+    net(d, u5.R_A0, "GSR_SIG", "R")
     for p in ("A1", "A2", "A3"):
         nc(d, getattr(u5, f"R_{p}"))
-    d += elm.Label().at((12.5, -9.2)).label("I²C 0x48 (ADDR = GND) · VDD 3.3 V only", fontsize=10, color=GREY)
+    d += elm.Label().at((12.5, -9.2)).label("I²C 0x48 (ADDR = GND) · VDD 3.3 V only · A1 reserved: breathing", fontsize=10, color="#555")
 
     # ---------------------------------------------------------- notes
     notes = ("Notes\n"

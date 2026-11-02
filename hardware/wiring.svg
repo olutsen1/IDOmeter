@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 870" width="1300" height="870" font-family="Helvetica, Arial, sans-serif" font-size="14">
 <rect width="100%" height="100%" fill="#ffffff"/>
 <text x="30" y="38" font-size="22" font-weight="bold" fill="#222">IDOmeter V1.0 — wiring</text>
-<text x="30" y="62" fill="#555">Module-level connections, traced from the PCB and firmware. Dashed: ADS1115 external ADC (planned).</text>
+<text x="30" y="62" fill="#555">Module-level connections, traced from the PCB and firmware. Grove SIG goes to both ADCs: ESP32 GPIO36 and ADS1115 A0.</text>
 <rect x="40" y="110" width="240" height="560" rx="8" fill="#eceff1" stroke="#455a64" stroke-width="2"/>
 <text x="52" y="134" font-weight="bold">LilyGO TTGO T-Display</text>
 <text x="52" y="152" fill="#555" font-size="12">ESP32 · 1.14″ screen · buttons 0/35</text>
@@ -65,8 +65,8 @@
 <circle cx="450" cy="230" r="5" fill="#00897b"/>
 <line x1="420" y1="264" x2="620" y2="264" stroke="#1565c0" stroke-width="3"/>
 <circle cx="420" cy="264" r="5" fill="#1565c0"/>
-<rect x="620" y="330" width="300" height="254" rx="8" fill="#fafafa" stroke="#37474f" stroke-width="2" stroke-dasharray="8 6"/>
-<text x="632" y="352" font-weight="bold">ADS1115 16-bit ADC  (planned)</text>
+<rect x="620" y="330" width="300" height="254" rx="8" fill="#e3f2fd" stroke="#37474f" stroke-width="2"/>
+<text x="632" y="352" font-weight="bold">ADS1115 16-bit ADC</text>
 <text x="632" y="370" fill="#555" font-size="12">I²C address 0x48 · VDD from 3V3 only</text>
 <text x="634" y="397">A0</text>
 <text x="634" y="431">VDD</text>
@@ -78,13 +78,13 @@
 <text x="634" y="533">SDA</text>
 <circle cx="620" cy="528" r="5" fill="#1565c0"/>
 <text x="634" y="567">ADDR → GND</text>
-<line x1="330" y1="426" x2="620" y2="426" stroke="#d32f2f" stroke-width="3" stroke-dasharray="8 6"/>
+<line x1="330" y1="426" x2="620" y2="426" stroke="#d32f2f" stroke-width="3"/>
 <circle cx="330" cy="426" r="5" fill="#d32f2f"/>
-<line x1="360" y1="460" x2="620" y2="460" stroke="#212121" stroke-width="3" stroke-dasharray="8 6"/>
+<line x1="360" y1="460" x2="620" y2="460" stroke="#212121" stroke-width="3"/>
 <circle cx="360" cy="460" r="5" fill="#212121"/>
-<line x1="450" y1="494" x2="620" y2="494" stroke="#00897b" stroke-width="3" stroke-dasharray="8 6"/>
+<line x1="450" y1="494" x2="620" y2="494" stroke="#00897b" stroke-width="3"/>
 <circle cx="450" cy="494" r="5" fill="#00897b"/>
-<line x1="420" y1="528" x2="620" y2="528" stroke="#1565c0" stroke-width="3" stroke-dasharray="8 6"/>
+<line x1="420" y1="528" x2="620" y2="528" stroke="#1565c0" stroke-width="3"/>
 <circle cx="420" cy="528" r="5" fill="#1565c0"/>
 <rect x="1000" y="330" width="250" height="186" rx="8" fill="#e3f2fd" stroke="#37474f" stroke-width="2"/>
 <text x="1012" y="352" font-weight="bold">Grove GSR v1.2</text>
@@ -101,7 +101,7 @@
 <polyline points="360,660 980,660 980,460 1000,460" fill="none" stroke="#212121" stroke-width="3"/>
 <circle cx="360" cy="660" r="5" fill="#212121"/>
 <polyline points="1000,392 940,392 940,620 296,620 296,648 280,648" fill="none" stroke="#c9a400" stroke-width="3"/>
-<line x1="920" y1="392" x2="940" y2="392" stroke="#c9a400" stroke-width="3" stroke-dasharray="8 6"/>
+<line x1="920" y1="392" x2="940" y2="392" stroke="#c9a400" stroke-width="3"/>
 <circle cx="920" cy="392" r="5" fill="#c9a400"/>
 <circle cx="940" cy="392" r="5" fill="#c9a400"/>
 <rect x="620" y="690" width="300" height="152" rx="8" fill="#e3f2fd" stroke="#37474f" stroke-width="2"/>
@@ -128,7 +128,7 @@
 <text x="1000" y="750"  fill="#333" font-size="13">  stays within the ADC input range.</text>
 <text x="1000" y="770"  fill="#333" font-size="13">• ADS1115: VDD on 3V3, never 5V.</text>
 <text x="1000" y="790"  fill="#333" font-size="13">• A1–A3 free (A1: breathing, later).</text>
-<text x="1000" y="810"  fill="#333" font-size="13">• GPIO36 can stay connected to SIG.</text>
+<text x="1000" y="810"  fill="#333" font-size="13">• SIG goes to GPIO36 and A0 (both ADCs).</text>
 <text x="1000" y="830"  fill="#333" font-size="13">• Lines crossing without a dot</text>
 <text x="1000" y="850"  fill="#333" font-size="13">  are not connected.</text>
 </svg>
