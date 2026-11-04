@@ -22,3 +22,6 @@ Thumbs.db
 
 # Python virtual environment (Linux scripts)
 .venv/
+
+# Calibration runs (machine-specific)
+calibration/

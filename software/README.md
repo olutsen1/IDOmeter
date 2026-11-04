@@ -130,6 +130,18 @@ from PPG and, when a sensor is present, how well the two agree.
 
 ## EDA calibration
 
+### Resistor calibration (guided)
+
+Flash `tools/board_check` to the board, close the Arduino IDE Serial Monitor,
+then run `5_calibrate.bat` (Linux: `./5_calibrate.sh`). The program finds the
+board's port, tells you which resistor to connect (1 MΩ, 470 kΩ, 220 kΩ,
+100 kΩ, 47 kΩ), records each one by itself and saves everything to
+`calibration/<date_time>/` (`summary.csv`, `samples.csv`, the board's raw
+output and the screen text). At a prompt you can type a resistor's measured
+value in kΩ, `s` to skip it or `q` to finish. On Linux the port may need
+`sudo usermod -a -G dialout $USER` once (then log out and in).
+
+
 In `config.json`, `eda_calibration`:
 
 - `{"type": "relative", "full_scale": 65520, "invert": true}` — default for the
