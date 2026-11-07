@@ -9,6 +9,9 @@
 //    Starts by itself after 30 s without a connection, or when the right
 //    button is held at power-on.
 //  * Serial monitor (115200): commands wifi, list, forget N, setup, status, help.
+//
+//  Everything here runs in one low-priority task (wifiTask, core 0), so
+//  connecting, scanning and serving the setup page never disturb sampling.
 // =====================================================================
 #pragma once
 #include <WiFi.h>
@@ -17,29 +20,31 @@
 #include <DNSServer.h>
 #include <Preferences.h>
 
-#define MAX_NETS 5
-#define AP_NAME  "IDometer-setup"
+#define MAX_NETS 5                 // how many networks are remembered
+#define AP_NAME  "IDometer-setup"  // name of the device's own setup network
 
-struct Net { String ssid, pass; };
-static Net  nets[MAX_NETS];
+struct Net { String ssid, pass; };   // one saved network: name and password
+static Net  nets[MAX_NETS];           // saved networks, newest first
 static int  netCount = 0;
 
-volatile bool stApOn = false;
-char          stSsid[33] = "";
-volatile bool forceApAtBoot = false;
+volatile bool stApOn = false;         // setup mode is on (read by the screen)
+char          stSsid[33] = "";        // name of the network we are connected to (for the screen)
+volatile bool forceApAtBoot = false;  // set in setup() if the button was held at power-on
 
-static Preferences prefs;
-static WebServer   web(80);
-static DNSServer   dns;
-static WiFiMulti*  multi = nullptr;
-static bool        multiDirty = true;
-static bool        tryNow = false;
-static String      scanList[20];
+static Preferences prefs;             // small key-value store in flash (survives power-off)
+static WebServer   web(80);           // the setup page (HTTP, port 80)
+static DNSServer   dns;               // answers every name with our address: "captive portal"
+static WiFiMulti*  multi = nullptr;   // tries all saved networks, joins the strongest one
+static bool        multiDirty = true; // the list changed: rebuild WiFiMulti before the next try
+static bool        tryNow = false;    // a network was just added: try to connect right away
+static String      scanList[20];      // networks seen nearby (for the drop-down list)
 static int         scanCount = 0;
 
 // ---------------------------------------------------------------- storage
+// Keys in the "wifi" area of the flash store: n = count, s0..s4 = names, p0..p4 = passwords.
+
 static void netsLoad() {
-  prefs.begin("wifi", true);
+  prefs.begin("wifi", true);          // true = read-only
   netCount = min((int)prefs.getUChar("n", 0), MAX_NETS);
   for (int i = 0; i < netCount; i++) {
     nets[i].ssid = prefs.getString(("s" + String(i)).c_str(), "");
@@ -50,7 +55,7 @@ static void netsLoad() {
 
 static void netsSave() {
   prefs.begin("wifi", false);
-  prefs.clear();
+  prefs.clear();                      // rewrite the whole list
   prefs.putUChar("n", netCount);
   for (int i = 0; i < netCount; i++) {
     prefs.putString(("s" + String(i)).c_str(), nets[i].ssid);
@@ -60,6 +65,7 @@ static void netsSave() {
   multiDirty = true;
 }
 
+// Removes network number idx (0-based) and closes the gap in the list.
 static void netsForget(int idx) {
   if (idx < 0 || idx >= netCount) return;
   for (int i = idx; i < netCount - 1; i++) nets[i] = nets[i + 1];
@@ -80,6 +86,7 @@ static void netsAdd(const String& ssid, const String& pass) {
 }
 
 // ---------------------------------------------------------------- web page
+// Makes text safe to put inside HTML (a network name may contain < > & ").
 static String esc(const String& s) {
   String o;
   for (char c : s) {
@@ -90,6 +97,7 @@ static String esc(const String& s) {
   return o;
 }
 
+// Looks for networks nearby; keeps up to 20 unique, non-hidden names.
 static void doScan() {
   int n = WiFi.scanNetworks();
   scanCount = 0;
@@ -103,6 +111,7 @@ static void doScan() {
   WiFi.scanDelete();
 }
 
+// Common start of every page: phone-friendly size and simple styling.
 static const char* PAGE_HEAD =
   "<!doctype html><html><head><meta charset='utf-8'>"
   "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -113,6 +122,7 @@ static const char* PAGE_HEAD =
   ".net{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ddd}"
   "a{color:#1565c0}.ok{color:#2e7d32}.no{color:#c62828}</style></head><body>";
 
+// Main page: connection status, network choice + password, saved networks.
 static void pageRoot() {
   String h = PAGE_HEAD;
   h += "<h1>IDometer Wi-Fi</h1>";
@@ -137,6 +147,7 @@ static void pageRoot() {
   web.send(200, "text/html; charset=utf-8", h);
 }
 
+// "Save and connect": a typed name wins over the drop-down choice.
 static void pageSave() {
   String ssid = web.arg("ssid_text");
   ssid.trim();
@@ -151,17 +162,21 @@ static void pageSave() {
   web.send(200, "text/html; charset=utf-8", h);
 }
 
+// Sends the browser back to the main page.
 static void redirectRoot() {
   web.sendHeader("Location", "http://192.168.4.1/", true);
   web.send(302, "text/plain", "");
 }
 
+// Setup mode on: the device starts its own open network and the setup page.
+// AP_STA = access point and normal client at the same time, so the device
+// keeps trying the saved networks while the phone is connected.
 static void apStart() {
   if (stApOn) return;
   WiFi.mode(WIFI_AP_STA);
   doScan();
   WiFi.softAP(AP_NAME);
-  dns.start(53, "*", WiFi.softAPIP());
+  dns.start(53, "*", WiFi.softAPIP());   // every web address leads to 192.168.4.1
   web.on("/", HTTP_GET, pageRoot);
   web.on("/save", HTTP_POST, pageSave);
   web.on("/scan", HTTP_GET, [] { doScan(); redirectRoot(); });
@@ -172,6 +187,7 @@ static void apStart() {
   Serial.println("Setup mode: join Wi-Fi \"" AP_NAME "\", open 192.168.4.1");
 }
 
+// Setup mode off: back to a normal Wi-Fi client only.
 static void apStop() {
   if (!stApOn) return;
   web.stop();
@@ -183,6 +199,8 @@ static void apStop() {
 }
 
 // ---------------------------------------------------------------- serial monitor
+// Commands typed in the Arduino IDE serial monitor (115200 baud).
+
 static void printNets() {
   Serial.printf("Saved networks: %d\n", netCount);
   for (int i = 0; i < netCount; i++) Serial.printf("  %d: %s\n", i + 1, nets[i].ssid.c_str());
@@ -201,6 +219,8 @@ static void printHelp() {
 
 void printStatus();   // defined in the main file
 
+// Reads the serial monitor without waiting. Adding a network is a small
+// dialogue: "wifi" -> asks for the name -> asks for the password.
 static void serialPoll() {
   static String buf;
   static uint32_t lastChar = 0;
@@ -247,8 +267,13 @@ static void serialPoll() {
 }
 
 // ---------------------------------------------------------------- Wi-Fi task
+// Keeps the device connected:
+//   connected            -> setup mode switches itself off after 60 s without a phone;
+//   not connected        -> tries the saved networks every 3 s (every 15 s in setup mode);
+//   not connected > 30 s -> setup mode switches on, so a phone can add a network.
 void wifiTask(void*) {
   netsLoad();
+  // the network from config.h is used only if nothing is stored yet
   String def = WIFI_SSID;
   if (netCount == 0 && def.length() && def != "your_network") netsAdd(def, WIFI_PASSWORD);
 
@@ -287,10 +312,10 @@ void wifiTask(void*) {
           for (int i = 0; i < netCount; i++) multi->addAP(nets[i].ssid.c_str(), nets[i].pass.c_str());
           multiDirty = false;
         }
-        multi->run(8000);
+        multi->run(8000);            // one connection attempt, up to 8 s
         lastTry = millis();
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(5));
+    vTaskDelay(pdMS_TO_TICKS(5));      // fast loop: the setup page must stay responsive
   }
 }
